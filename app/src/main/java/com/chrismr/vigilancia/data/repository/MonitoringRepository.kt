@@ -33,6 +33,9 @@ class MonitoringRepository(private val dao: DailyMonitoringDao) {
     ): List<DailyMonitoringModel> =
         dao.getAllMonitoringForMonth(year, month).map { it.toModel() }
 
+    suspend fun getAllMonitoringForYear(year: Int): List<DailyMonitoringModel> =
+        dao.getAllMonitoringForYear(year).map { it.toModel() }
+
     suspend fun insertOrUpdate(model: DailyMonitoringModel): Long =
         dao.insertOrUpdate(model.toEntity())
 

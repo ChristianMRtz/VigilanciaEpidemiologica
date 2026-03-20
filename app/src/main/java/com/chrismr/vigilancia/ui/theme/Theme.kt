@@ -1,58 +1,87 @@
 package com.chrismr.vigilancia.ui.theme
 
-import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
-)
+import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary            = MedBlue40,
+    onPrimary          = Color.White,
+    primaryContainer   = MedBlue90,
+    onPrimaryContainer = MedBlue10,
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    secondary            = Teal40,
+    onSecondary          = Color.White,
+    secondaryContainer   = Teal90,
+    onSecondaryContainer = Color(0xFF002020),
+
+    tertiary            = Violet40,
+    onTertiary          = Color.White,
+    tertiaryContainer   = Color(0xFFEADDFF),
+    onTertiaryContainer = Color(0xFF21005D),
+
+    error            = Color(0xFFBA1A1A),
+    onError          = Color.White,
+    errorContainer   = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002),
+
+    background         = NeutralBg,
+    onBackground       = Color(0xFF191C20),
+    surface            = Color.White,
+    onSurface          = Color(0xFF191C20),
+    surfaceVariant     = NeutralBg2,
+    onSurfaceVariant   = Color(0xFF44474F),
+    outline            = Color(0xFF74777F),
+    outlineVariant     = Color(0xFFC4C7CF),
+    inverseSurface     = Color(0xFF2E3135),
+    inverseOnSurface   = Color(0xFFF0F0F7),
+    inversePrimary     = MedBlue80,
+)
+
+private val DarkColorScheme = darkColorScheme(
+    primary            = MedBlue80,
+    onPrimary          = MedBlue20,
+    primaryContainer   = Color(0xFF004A97),
+    onPrimaryContainer = MedBlue90,
+
+    secondary            = Teal80,
+    onSecondary          = Color(0xFF003737),
+    secondaryContainer   = Color(0xFF004F50),
+    onSecondaryContainer = Teal90,
+
+    tertiary            = Violet80,
+    onTertiary          = Color(0xFF381E72),
+    tertiaryContainer   = Color(0xFF4F378B),
+    onTertiaryContainer = Color(0xFFEADDFF),
+
+    error            = Color(0xFFFFB4AB),
+    onError          = Color(0xFF690005),
+    errorContainer   = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6),
+
+    background       = Color(0xFF111318),
+    onBackground     = Color(0xFFE2E2E9),
+    surface          = Color(0xFF1A1C22),
+    onSurface        = Color(0xFFE2E2E9),
+    surfaceVariant   = Color(0xFF44474F),
+    onSurfaceVariant = Color(0xFFC4C7CF),
+    outline          = Color(0xFF8E9099),
+    outlineVariant   = Color(0xFF44474F),
 )
 
 @Composable
 fun VigilanciaEpidemiologicaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
-        content = content
+        typography  = Typography,
+        content     = content
     )
 }

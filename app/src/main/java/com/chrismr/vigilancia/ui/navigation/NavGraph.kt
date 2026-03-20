@@ -43,6 +43,7 @@ fun NavGraph(
             PatientFormScreen(
                 patientId = null,
                 patientRepository = patientRepository,
+                monitoringRepository = monitoringRepository,
                 onBack = { navController.popBackStack() }
             )
         }
@@ -54,6 +55,7 @@ fun NavGraph(
             PatientFormScreen(
                 patientId = patientId,
                 patientRepository = patientRepository,
+                monitoringRepository = monitoringRepository,
                 onBack = { navController.popBackStack() }
             )
         }

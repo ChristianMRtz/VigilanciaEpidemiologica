@@ -9,7 +9,9 @@ import com.chrismr.vigilancia.data.repository.PatientRepository
 import com.chrismr.vigilancia.domain.enums.MonitoringStatus
 import com.chrismr.vigilancia.domain.model.PatientModel
 import com.chrismr.vigilancia.util.DateUtils
+import com.chrismr.vigilancia.util.BackupManager
 import com.chrismr.vigilancia.util.ExcelExporter
+import android.widget.Toast
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -76,6 +78,45 @@ class PatientListViewModel(
             val patients = repository.getAllPatientsSnapshot()
             val monitorings = monitoringRepository.getAllMonitoringForMonth(year, month)
             ExcelExporter.export(context, patients, monitorings, year, month)
+        }
+    }
+
+    /** Exporta un año completo (una hoja por mes). Si es el año actual, solo hasta el mes actual. */
+    fun exportAnual(context: Context, year: Int) {
+        viewModelScope.launch {
+            val patients  = repository.getAllPatientsSnapshot()
+            val nowYear   = DateUtils.getCurrentYear()
+            val nowMonth  = DateUtils.getCurrentMonth()
+            val months    = if (year == nowYear) (1..nowMonth).toList() else (1..12).toList()
+            val allMonitorings = monitoringRepository.getAllMonitoringForYear(year)
+            val byMonth   = allMonitorings.groupBy { it.month }
+            ExcelExporter.exportYear(context, patients, byMonth, year, months)
+        }
+    }
+
+    /** Guarda un backup ZIP de la BD en la carpeta Descargas del dispositivo. */
+    fun backupToDevice(context: Context) {
+        viewModelScope.launch {
+            val result = BackupManager.backupToDevice(context.applicationContext)
+            result.fold(
+                onSuccess = { (_, fileName) ->
+                    Toast.makeText(
+                        context,
+                        "✓ Backup guardado en Descargas: $fileName",
+                        Toast.LENGTH_LONG
+                    ).show()
+                },
+                onFailure = { e ->
+                    Toast.makeText(context, "Error al crear backup: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
+
+    /** Hace backup y abre el selector nativo para compartir (correo, Drive, WhatsApp…). */
+    fun backupAndShare(context: Context) {
+        viewModelScope.launch {
+            BackupManager.backupAndShare(context.applicationContext)
         }
     }
 

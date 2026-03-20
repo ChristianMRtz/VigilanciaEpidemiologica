@@ -37,6 +37,10 @@ interface DailyMonitoringDao {
     @Query("SELECT * FROM daily_monitorings WHERE year = :year AND month = :month")
     suspend fun getAllMonitoringForMonth(year: Int, month: Int): List<DailyMonitoring>
 
+    /** Todos los registros de un año completo (para exportación anual). */
+    @Query("SELECT * FROM daily_monitorings WHERE year = :year ORDER BY month, day")
+    suspend fun getAllMonitoringForYear(year: Int): List<DailyMonitoring>
+
     /** INSERT o UPDATE: la clave de unicidad es (patientId, year, month, day). */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(monitoring: DailyMonitoring): Long

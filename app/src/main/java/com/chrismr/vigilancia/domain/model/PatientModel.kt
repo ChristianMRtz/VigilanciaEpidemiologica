@@ -12,6 +12,7 @@ data class PatientModel(
     val fechaNacimiento: String = "",
     val fechaIngreso: String = "",
     val diagnostico: String = "",
+    val numeroCama: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -27,6 +28,7 @@ fun Patient.toModel() = PatientModel(
     fechaNacimiento = fechaNacimiento,
     fechaIngreso = fechaIngreso,
     diagnostico = diagnostico,
+    numeroCama = numeroCama,
     createdAt = createdAt
 )
 
@@ -40,5 +42,6 @@ fun PatientModel.toEntity() = Patient(
     fechaNacimiento = fechaNacimiento,
     fechaIngreso = fechaIngreso,
     diagnostico = diagnostico,
+    numeroCama = numeroCama,
     createdAt = createdAt
 )

@@ -35,6 +35,23 @@ class MonitoringViewModel(
     val year: StateFlow<Int> = _year.asStateFlow()
     val month: StateFlow<Int> = _month.asStateFlow()
 
+    init {
+        // Navegar al mes de la fecha de ingreso del paciente si es anterior al mes actual
+        viewModelScope.launch {
+            patientRepository.getPatientById(patientId)
+                ?.fechaIngreso
+                ?.let { parseYearMonth(it) }
+                ?.let { (y, m) ->
+                    val nowY = DateUtils.getCurrentYear()
+                    val nowM = DateUtils.getCurrentMonth()
+                    if (y < nowY || (y == nowY && m <= nowM)) {
+                        _year.value = y
+                        _month.value = m
+                    }
+                }
+        }
+    }
+
     val patient: StateFlow<PatientModel?> = flow {
         emit(patientRepository.getPatientById(patientId))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -332,8 +349,16 @@ class MonitoringViewModel(
 
             // ── Auto-relleno (no aplica para INICIO) ─────────────────────
             if (status != MonitoringStatus.INICIO) {
-                val retiroDayInMap = if (status == MonitoringStatus.RETIRO) null
-                    else currentMap.values.firstOrNull { it.status == MonitoringStatus.RETIRO }?.day
+                // Buscar RETIRO: primero en el mes actual, luego en meses anteriores.
+                // Si el RETIRO fue en otro mes, todos los días del mes actual son post-RETIRO
+                // y deben rellenarse con SIN_DISPOSITIVO.
+                val retiroDayInMap = when {
+                    status == MonitoringStatus.RETIRO -> null
+                    currentMap.values.any { it.status == MonitoringStatus.RETIRO } ->
+                        currentMap.values.first { it.status == MonitoringStatus.RETIRO }.day
+                    allHistory.any { it.status == MonitoringStatus.RETIRO } -> 0  // RETIRO en mes anterior → día 0 = todos los días son post-RETIRO
+                    else -> null
+                }
 
                 val lastFilledDay = (1 until day).filter { currentMap.containsKey(it) }.maxOrNull()
                 val fillFrom = (lastFilledDay ?: 0) + 1
@@ -356,6 +381,14 @@ class MonitoringViewModel(
                 existing?.copy(status = status, updatedAt = System.currentTimeMillis())
                     ?: DailyMonitoringModel(patientId = patientId, year = y, month = m, day = day, status = status)
             )
+
+            // ── Si es INICIO, sincronizar fechaIngreso del paciente ───────
+            if (status == MonitoringStatus.INICIO) {
+                patient.value?.let { p ->
+                    val nuevaFecha = "%02d/%02d/%04d".format(day, m, y)
+                    patientRepository.updatePatient(p.copy(fechaIngreso = nuevaFecha))
+                }
+            }
         }
     }
 
@@ -373,6 +406,15 @@ class MonitoringViewModel(
             ExcelExporter.export(context, patients, monitorings, year, month)
         }
     }
+
+    /**
+     * Parsea una fecha en formato "DD/MM/YYYY" y devuelve (año, mes).
+     * Devuelve null si el formato es inválido.
+     */
+    private fun parseYearMonth(fecha: String): Pair<Int, Int>? = runCatching {
+        val parts = fecha.split("/")
+        parts[2].toInt() to parts[1].toInt()   // año to mes
+    }.getOrNull()
 
     companion object {
         fun factory(patientId: Long, patientRepository: PatientRepository, monitoringRepository: MonitoringRepository) =

@@ -10,4 +10,7 @@
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>
 -->
+    <include domain="database" path="vigilancia_epidemiologica.db"/>
+    <include domain="database" path="vigilancia_epidemiologica.db-shm"/>
+    <include domain="database" path="vigilancia_epidemiologica.db-wal"/>
 </full-backup-content>

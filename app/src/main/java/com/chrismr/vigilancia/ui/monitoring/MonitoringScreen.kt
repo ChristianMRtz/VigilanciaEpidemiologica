@@ -10,44 +10,43 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -72,6 +71,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chrismr.vigilancia.data.repository.MonitoringRepository
 import com.chrismr.vigilancia.data.repository.PatientRepository
 import com.chrismr.vigilancia.domain.enums.MonitoringStatus
+import com.chrismr.vigilancia.ui.theme.StatusBlue
+import com.chrismr.vigilancia.ui.theme.StatusBlueBg
+import com.chrismr.vigilancia.ui.theme.StatusEmpty
+import com.chrismr.vigilancia.ui.theme.StatusEmptyFg
+import com.chrismr.vigilancia.ui.theme.StatusGray
+import com.chrismr.vigilancia.ui.theme.StatusGrayBg
+import com.chrismr.vigilancia.ui.theme.StatusGreen
+import com.chrismr.vigilancia.ui.theme.StatusGreenBg
+import com.chrismr.vigilancia.ui.theme.StatusOrange
+import com.chrismr.vigilancia.ui.theme.StatusOrangeBg
+import com.chrismr.vigilancia.ui.theme.StatusRed
+import com.chrismr.vigilancia.ui.theme.StatusRedBg
 import com.chrismr.vigilancia.util.DateUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,7 +131,8 @@ fun MonitoringScreen(
                 Snackbar(
                     snackbarData = data,
                     containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    shape = RoundedCornerShape(12.dp)
                 )
             }
         },
@@ -141,12 +153,14 @@ fun MonitoringScreen(
                     Column {
                         Text(
                             text = patient?.nombreCompleto ?: "Seguimiento",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                         patient?.diagnostico?.let {
                             Text(
                                 text = it,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                             )
                         }
@@ -154,155 +168,211 @@ fun MonitoringScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = { showClearConfirmDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Limpiar mes")
+                        Icon(Icons.Default.Delete, contentDescription = "Limpiar mes",
+                            tint = MaterialTheme.colorScheme.onPrimary)
                     }
                     IconButton(onClick = { showExportPicker = true }) {
-                        Icon(Icons.Default.Share, contentDescription = "Exportar Excel")
+                        Icon(Icons.Default.Share, contentDescription = "Exportar Excel",
+                            tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
         ) {
             // ── Navegador de mes ──────────────────────────────────────────
-            Row(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                IconButton(onClick = vm::previousMonth) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Mes anterior")
-                }
-                Text(
-                    text = DateUtils.formatMonthYear(month, year),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                IconButton(onClick = vm::nextMonth) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Mes siguiente")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    IconButton(onClick = vm::previousMonth) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = "Mes anterior",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Text(
+                        text = DateUtils.formatMonthYear(month, year),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    IconButton(onClick = vm::nextMonth) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Mes siguiente",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
 
             // ── Leyenda ───────────────────────────────────────────────────
             StatusLegend()
 
-            HorizontalDivider()
-
-            // ── Banner: mes bloqueado por Alta en mes anterior ────────────
+            // ── Banner: mes bloqueado por Alta ────────────────────────────
             if (isEntireMonthLocked && egresoRecord != null) {
                 val r = egresoRecord!!
-                Box(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF44336))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
                 ) {
-                    Text(
-                        text = "Alta dada el " +
-                            "${r.day.toString().padStart(2,'0')}/" +
-                            "${r.month.toString().padStart(2,'0')}/${r.year}" +
-                            " — este mes no se puede modificar",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Alta el ${r.day.toString().padStart(2,'0')}/" +
+                                "${r.month.toString().padStart(2,'0')}/${r.year} — mes bloqueado",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
-            // ── Cabecera días de semana ───────────────────────────────────
-            val weekDays = listOf("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-                weekDays.forEach { label ->
-                    Text(
-                        text = label,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Grid del calendario ───────────────────────────────────────
-            val totalCells = firstOffset + days.size
-            val rows = (totalCells + 6) / 7
-            val egresoDay = monitoringMap.values
-                .firstOrNull { it.status == MonitoringStatus.EGRESO }?.day
-
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+            // ── Calendario (ocupa todo el espacio restante) ───────────────
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .padding(bottom = 8.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                for (row in 0 until rows) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 10.dp, vertical = 10.dp)
+                ) {
+                    // Cabecera días de semana
+                    val weekDays = listOf("L", "M", "X", "J", "V", "S", "D")
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
-                        for (col in 0 until 7) {
-                            val cellIndex = row * 7 + col
-                            val day = cellIndex - firstOffset + 1
-                            if (day < 1 || day > days.size) {
-                                Box(modifier = Modifier.weight(1f).height(40.dp))
-                            } else {
-                                val status = monitoringMap[day]?.status ?: MonitoringStatus.VACIO
-                                val isLocked = isEntireMonthLocked || (egresoDay != null && day > egresoDay)
-                                val isSelected = day in selectedDays
-                                CalendarDayCell(
-                                    day = day,
-                                    status = status,
-                                    locked = isLocked,
-                                    isSelected = isSelected,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = {
-                                        if (isSelectionMode) vm.toggleDaySelection(day)
-                                        else if (!isLocked) {
-                                            val currentStatus = monitoringMap[day]?.status
-                                                ?: MonitoringStatus.VACIO
-                                            if (!hasInicio && currentStatus == MonitoringStatus.VACIO) {
-                                                // Primer toque sin INICIO previo → INICIO automático
-                                                vm.setStatus(day, MonitoringStatus.INICIO)
-                                            } else {
-                                                dayToEdit = day
+                        weekDays.forEach { label ->
+                            Text(
+                                text = label,
+                                modifier = Modifier.weight(1f),
+                                textAlign = TextAlign.Center,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val totalCells = firstOffset + days.size
+                    val rows = (totalCells + 6) / 7
+                    val egresoDay = monitoringMap.values
+                        .firstOrNull { it.status == MonitoringStatus.EGRESO }?.day
+
+                    // Cada fila ocupa 1/numRows del espacio disponible
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        for (row in 0 until rows) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                for (col in 0 until 7) {
+                                    val cellIndex = row * 7 + col
+                                    val day = cellIndex - firstOffset + 1
+                                    if (day < 1 || day > days.size) {
+                                        Box(modifier = Modifier.weight(1f).fillMaxHeight())
+                                    } else {
+                                        val status = monitoringMap[day]?.status ?: MonitoringStatus.VACIO
+                                        val isLocked = isEntireMonthLocked || (egresoDay != null && day > egresoDay)
+                                        val isSelected = day in selectedDays
+                                        CalendarDayCell(
+                                            day = day,
+                                            status = status,
+                                            locked = isLocked,
+                                            isSelected = isSelected,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight(),
+                                            onClick = {
+                                                if (isSelectionMode) vm.toggleDaySelection(day)
+                                                else if (!isLocked) {
+                                                    val currentStatus = monitoringMap[day]?.status
+                                                        ?: MonitoringStatus.VACIO
+                                                    if (!hasInicio && currentStatus == MonitoringStatus.VACIO) {
+                                                        vm.setStatus(day, MonitoringStatus.INICIO)
+                                                    } else {
+                                                        dayToEdit = day
+                                                    }
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (!isLocked) vm.toggleDaySelection(day)
                                             }
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isLocked) vm.toggleDaySelection(day)
+                                        )
                                     }
-                                )
+                                }
                             }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
-    // ── Diálogo de confirmación: limpiar mes ──────────────────────────────
+    // ── Diálogo limpiar mes ───────────────────────────────────────────────
     if (showClearConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showClearConfirmDialog = false },
@@ -310,15 +380,17 @@ fun MonitoringScreen(
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(28.dp)
                 )
             },
-            title = { Text("Limpiar mes") },
+            title = { Text("Limpiar mes", fontWeight = FontWeight.SemiBold) },
             text = {
                 Text(
                     "Se eliminarán todos los registros de vigilancia de " +
                         "${DateUtils.formatMonthYear(month, year)} para este paciente.\n\n" +
-                        "Esta acción no se puede deshacer."
+                        "Esta acción no se puede deshacer.",
+                    style = MaterialTheme.typography.bodyMedium
                 )
             },
             confirmButton = {
@@ -327,14 +399,14 @@ fun MonitoringScreen(
                         vm.clearAllMonth()
                         showClearConfirmDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    shape = RoundedCornerShape(10.dp)
                 ) { Text("Limpiar todo") }
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirmDialog = false }) { Text("Cancelar") }
-            }
+            },
+            shape = RoundedCornerShape(20.dp)
         )
     }
 
@@ -351,7 +423,6 @@ fun MonitoringScreen(
         )
     }
 
-    // Export month/year picker dialog
     if (showExportPicker) {
         MonthYearPickerDialog(
             initialYear = year,
@@ -365,6 +436,7 @@ fun MonitoringScreen(
     }
 }
 
+// ── Celda del calendario ───────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CalendarDayCell(
@@ -377,16 +449,17 @@ private fun CalendarDayCell(
     onLongClick: () -> Unit = {}
 ) {
     val (bg, fg) = statusColors(status)
-    val bgFinal = if (locked) Color(0xFFF5F5F5) else bg
-    val fgFinal = if (locked) Color(0xFFBDBDBD) else fg
+    val bgFinal = if (locked) Color(0xFFF0F4F8) else bg
+    val fgFinal = if (locked) Color(0xFFB0BEC5) else fg
+
     Box(
         modifier = modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(5.dp))
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(8.dp))
             .background(bgFinal)
             .then(
                 if (isSelected)
-                    Modifier.border(2.5.dp, Color.White, RoundedCornerShape(5.dp))
+                    Modifier.border(2.5.dp, Color.White, RoundedCornerShape(8.dp))
                 else Modifier
             )
             .then(
@@ -403,34 +476,35 @@ private fun CalendarDayCell(
             Text(
                 text = day.toString(),
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                color = if (isSelected) Color.White else fgFinal,
-                lineHeight = 12.sp
+                fontSize = 18.sp,
+                color = fgFinal,
+                lineHeight = 19.sp
             )
             if (status != MonitoringStatus.VACIO && !locked) {
                 Text(
                     text = status.shortName,
-                    fontSize = 7.sp,
-                    color = (if (isSelected) Color.White else fgFinal).copy(alpha = 0.9f),
+                    fontSize = 12.sp,
+                    color = fgFinal.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center,
-                    lineHeight = 8.sp
+                    lineHeight = 13.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
-        // Indicador de selección en esquina superior derecha
         if (isSelected) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(2.dp)
-                    .size(8.dp)
+                    .padding(3.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
-                    .background(Color.White)
+                    .background(Color.White.copy(alpha = 0.9f))
             )
         }
     }
 }
 
+// ── Barra de acción de selección ───────────────────────────────────────────
 @Composable
 private fun SelectionActionBar(
     count: Int,
@@ -439,96 +513,107 @@ private fun SelectionActionBar(
     onLimpiar: () -> Unit,
     onCancel: () -> Unit
 ) {
-    Surface(
-        tonalElevation = 8.dp,
-        shadowElevation = 8.dp
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "$count día${if (count != 1) "s" else ""} seleccionado${if (count != 1) "s" else ""}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$count día${if (count != 1) "s" else ""} seleccionado${if (count != 1) "s" else ""}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                TextButton(onClick = onCancel) {
+                    Text("Cancelar", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilledTonalButton(
                     onClick = onContinua,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color(0xFF2196F3),
+                        containerColor = Color(0xFF1E88E5),
                         contentColor = Color.White
                     )
-                ) { Text("Continúa", fontSize = 12.sp) }
+                ) { Text("Continúa", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
 
                 FilledTonalButton(
                     onClick = onSinDispositivo,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color(0xFF9E9E9E),
+                        containerColor = Color(0xFF78909C),
                         contentColor = Color.White
                     )
-                ) { Text("Sin disp. ( - )", fontSize = 12.sp) }
+                ) { Text("Sin disp.", fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
 
                 FilledTonalButton(
                     onClick = onLimpiar,
                     modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) { Text("Limpiar", fontSize = 12.sp) }
             }
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Cancelar selección") }
         }
     }
 }
 
+// ── Chip de estado ─────────────────────────────────────────────────────────
 @Composable
 fun StatusChip(status: MonitoringStatus) {
     val (bg, fg) = statusColors(status)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(bg)
-            .border(1.dp, bg.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = status.displayName,
             color = fg,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold
         )
     }
 }
 
+// ── Leyenda de estados ─────────────────────────────────────────────────────
 @Composable
 private fun StatusLegend() {
-    Row(
+    LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        MonitoringStatus.entries
-            .filter { it != MonitoringStatus.VACIO }
-            .forEach { s ->
-                StatusChip(s)
-            }
+        items(MonitoringStatus.entries.filter { it != MonitoringStatus.VACIO }) { s ->
+            StatusChip(s)
+        }
     }
 }
 
+// ── Diálogo selector de estado ─────────────────────────────────────────────
 @Composable
 private fun StatusPickerDialog(
     day: Int,
@@ -536,15 +621,19 @@ private fun StatusPickerDialog(
     onSelect: (MonitoringStatus) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // Opciones visibles (excluir VACIO del grid principal)
     val opciones = MonitoringStatus.entries.filter { it != MonitoringStatus.VACIO }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Día $day — ¿Qué estado asignar?") },
+        title = {
+            Text(
+                "Día $day — Asignar estado",
+                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Grid 2 columnas con botones de color
                 opciones.chunked(2).forEach { fila ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -556,12 +645,12 @@ private fun StatusPickerDialog(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(bg)
                                     .border(
-                                        width = if (isSelected) 3.dp else 0.dp,
-                                        color = if (isSelected) Color.White else Color.Transparent,
-                                        shape = RoundedCornerShape(10.dp)
+                                        width = if (isSelected) 2.5.dp else 0.dp,
+                                        color = if (isSelected) fg else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp)
                                     )
                                     .clickable { onSelect(s) }
                                     .padding(vertical = 14.dp),
@@ -572,34 +661,32 @@ private fun StatusPickerDialog(
                                         text = s.displayName,
                                         color = fg,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
+                                        fontSize = 14.sp
                                     )
                                     if (isSelected) {
-                                        Text("✓", color = fg, fontSize = 12.sp)
+                                        Text("✓", color = fg, fontSize = 11.sp)
                                     }
                                 }
                             }
                         }
-                        // Rellenar fila impar con espacio vacío
                         if (fila.size == 1) Box(modifier = Modifier.weight(1f))
                     }
                 }
 
                 HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
 
-                // Botón de limpiar separado
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFEEEEEE))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .clickable { onSelect(MonitoringStatus.VACIO) }
-                        .padding(vertical = 10.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Limpiar día",
-                        color = Color(0xFF757575),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
                         fontSize = 14.sp
                     )
@@ -609,17 +696,19 @@ private fun StatusPickerDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancelar") }
-        }
+        },
+        shape = RoundedCornerShape(20.dp)
     )
 }
 
+// ── Colores de estado ──────────────────────────────────────────────────────
 private fun statusColors(status: MonitoringStatus): Pair<Color, Color> = when (status) {
-    MonitoringStatus.INICIO -> Color(0xFF4CAF50) to Color.White
-    MonitoringStatus.CONTINUA -> Color(0xFF2196F3) to Color.White
-    MonitoringStatus.RETIRO -> Color(0xFFFF9800) to Color.White
-    MonitoringStatus.SIN_DISPOSITIVO -> Color(0xFF9E9E9E) to Color.White
-    MonitoringStatus.EGRESO -> Color(0xFFF44336) to Color.White
-    MonitoringStatus.VACIO -> Color(0xFFEEEEEE) to Color(0xFF757575)
+    MonitoringStatus.INICIO         -> StatusGreenBg  to StatusGreen
+    MonitoringStatus.CONTINUA       -> StatusBlueBg   to StatusBlue
+    MonitoringStatus.RETIRO         -> StatusOrangeBg to StatusOrange
+    MonitoringStatus.SIN_DISPOSITIVO -> StatusGrayBg  to StatusGray
+    MonitoringStatus.EGRESO         -> StatusRedBg    to StatusRed
+    MonitoringStatus.VACIO          -> StatusEmpty    to StatusEmptyFg
 }
 
 private val MONTH_NAMES = listOf(
@@ -627,6 +716,7 @@ private val MONTH_NAMES = listOf(
     "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"
 )
 
+// ── Diálogo mes/año exportar ───────────────────────────────────────────────
 @Composable
 private fun MonthYearPickerDialog(
     initialYear: Int,
@@ -639,9 +729,9 @@ private fun MonthYearPickerDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            tonalElevation = 8.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -650,22 +740,23 @@ private fun MonthYearPickerDialog(
                 Text(
                     text = "Seleccionar mes para exportar",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Year selector
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     IconButton(onClick = { selectedYear-- }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "Año anterior"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Año anterior")
                     }
                     Text(
                         text = selectedYear.toString(),
@@ -673,16 +764,12 @@ private fun MonthYearPickerDialog(
                         fontWeight = FontWeight.Bold
                     )
                     IconButton(onClick = { selectedYear++ }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "Año siguiente"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Año siguiente")
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Month grid (3 columns × 4 rows)
                 val rows = MONTH_NAMES.chunked(3)
                 rows.forEachIndexed { rowIndex, rowMonths ->
                     Row(
@@ -695,13 +782,13 @@ private fun MonthYearPickerDialog(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(
                                         if (isSelected) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.surfaceVariant
                                     )
                                     .clickable { selectedMonth = monthNumber }
-                                    .padding(vertical = 10.dp),
+                                    .padding(vertical = 12.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -719,7 +806,6 @@ private fun MonthYearPickerDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -727,9 +813,10 @@ private fun MonthYearPickerDialog(
                 ) {
                     TextButton(onClick = onDismiss) { Text("Cancelar") }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onConfirm(selectedYear, selectedMonth) }) {
-                        Text("Exportar")
-                    }
+                    Button(
+                        onClick = { onConfirm(selectedYear, selectedMonth) },
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text("Exportar") }
                 }
             }
         }

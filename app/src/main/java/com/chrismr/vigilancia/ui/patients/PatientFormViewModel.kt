@@ -6,8 +6,11 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.chrismr.vigilancia.data.repository.MonitoringRepository
 import com.chrismr.vigilancia.data.repository.PatientRepository
+import com.chrismr.vigilancia.domain.model.DailyMonitoringModel
 import com.chrismr.vigilancia.domain.model.PatientModel
+import com.chrismr.vigilancia.domain.enums.MonitoringStatus
 import kotlinx.coroutines.launch
 
 sealed class FormResult {
@@ -18,6 +21,7 @@ sealed class FormResult {
 
 class PatientFormViewModel(
     private val repository: PatientRepository,
+    private val monitoringRepository: MonitoringRepository,
     private val patientId: Long?
 ) : ViewModel() {
 
@@ -41,6 +45,7 @@ class PatientFormViewModel(
     var fechaNacimiento by mutableStateOf("")
     var fechaIngreso by mutableStateOf("")
     var diagnostico by mutableStateOf("")
+    var numeroCama by mutableStateOf("")
     var result by mutableStateOf<FormResult>(FormResult.Idle)
     var isLoading by mutableStateOf(false)
 
@@ -65,6 +70,7 @@ class PatientFormViewModel(
                     fechaNacimiento = p.fechaNacimiento
                     fechaIngreso = p.fechaIngreso
                     diagnostico = p.diagnostico
+                    numeroCama = p.numeroCama
                 }
                 isLoading = false
             }
@@ -85,8 +91,16 @@ class PatientFormViewModel(
         val edadStr = if (edadNumero.isNotBlank()) "${edadNumero.trim()}${edadUnidad}" else ""
         viewModelScope.launch {
             try {
+                // ── Validar DNI único ────────────────────────────────────
+                val existing = repository.getPatientByDni(dni.trim())
+                if (existing != null && existing.id != patientId) {
+                    dniError = "Este DNI ya está registrado"
+                    result = FormResult.Error("El DNI ${dni.trim()} ya pertenece a ${existing.nombreCompleto}.")
+                    return@launch
+                }
+
                 if (patientId == null) {
-                    repository.insertPatient(
+                    val newId = repository.insertPatient(
                         PatientModel(
                             nombreCompleto = nombreCompleto.trim(),
                             edad = edadStr,
@@ -95,9 +109,22 @@ class PatientFormViewModel(
                             intervencionQuirurgica = intervencionQuirurgica.trim(),
                             fechaNacimiento = fechaNacimiento.trim(),
                             fechaIngreso = fechaIngreso.trim(),
-                            diagnostico = diagnostico.trim()
+                            diagnostico = diagnostico.trim(),
+                            numeroCama = numeroCama.trim()
                         )
                     )
+                    // Registrar INICIO automático en el día de fechaIngreso
+                    parseFechaIngreso(fechaIngreso.trim())?.let { (day, month, year) ->
+                        monitoringRepository.insertOrUpdate(
+                            DailyMonitoringModel(
+                                patientId = newId,
+                                year      = year,
+                                month     = month,
+                                day       = day,
+                                status    = MonitoringStatus.INICIO
+                            )
+                        )
+                    }
                 } else {
                     val existing = repository.getPatientById(patientId) ?: return@launch
                     repository.updatePatient(
@@ -109,7 +136,8 @@ class PatientFormViewModel(
                             intervencionQuirurgica = intervencionQuirurgica.trim(),
                             fechaNacimiento = fechaNacimiento.trim(),
                             fechaIngreso = fechaIngreso.trim(),
-                            diagnostico = diagnostico.trim()
+                            diagnostico = diagnostico.trim(),
+                            numeroCama = numeroCama.trim()
                         )
                     )
                 }
@@ -120,12 +148,21 @@ class PatientFormViewModel(
         }
     }
 
+    /** Parsea "DD/MM/YYYY" → Triple(día, mes, año). Devuelve null si el formato es inválido. */
+    private fun parseFechaIngreso(fecha: String): Triple<Int, Int, Int>? = runCatching {
+        val p = fecha.split("/")
+        Triple(p[0].toInt(), p[1].toInt(), p[2].toInt())
+    }.getOrNull()
+
     companion object {
-        fun factory(repository: PatientRepository, patientId: Long?) =
-            object : ViewModelProvider.Factory {
+        fun factory(
+            repository: PatientRepository,
+            monitoringRepository: MonitoringRepository,
+            patientId: Long?
+        ) = object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    PatientFormViewModel(repository, patientId) as T
+                    PatientFormViewModel(repository, monitoringRepository, patientId) as T
             }
     }
 }
