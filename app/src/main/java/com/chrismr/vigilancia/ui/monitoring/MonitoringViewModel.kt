@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -36,19 +37,25 @@ class MonitoringViewModel(
     val month: StateFlow<Int> = _month.asStateFlow()
 
     init {
-        // Navegar al mes de la fecha de ingreso del paciente si es anterior al mes actual
+        // Al abrir, intentar ir al mes con la actividad más reciente, o a la fecha de ingreso
         viewModelScope.launch {
-            patientRepository.getPatientById(patientId)
-                ?.fechaIngreso
-                ?.let { parseYearMonth(it) }
-                ?.let { (y, m) ->
-                    val nowY = DateUtils.getCurrentYear()
-                    val nowM = DateUtils.getCurrentMonth()
-                    if (y < nowY || (y == nowY && m <= nowM)) {
-                        _year.value = y
-                        _month.value = m
-                    }
+            val history = monitoringRepository.getAllForPatient(patientId).first()
+            if (history.isNotEmpty()) {
+                // Buscar el registro más reciente cronológicamente
+                val latest = history.maxWith(
+                    compareBy<DailyMonitoringModel> { it.year }
+                        .thenBy { it.month }
+                        .thenBy { it.day }
+                )
+                _year.value = latest.year
+                _month.value = latest.month
+            } else {
+                // Si no hay registros, usar fecha de ingreso
+                patientRepository.getPatientById(patientId)?.fechaIngreso?.let { parseYearMonth(it) }?.let { (y, m) ->
+                    _year.value = y
+                    _month.value = m
                 }
+            }
         }
     }
 
