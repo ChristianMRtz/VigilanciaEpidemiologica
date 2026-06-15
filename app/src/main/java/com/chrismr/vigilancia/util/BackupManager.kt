@@ -79,14 +79,24 @@ object BackupManager {
                 val app = appContext as? com.chrismr.vigilancia.VigilanciaApp
                 app?.database?.close()
 
-                // 2. Extraer archivos del ZIP
+                // 2. Eliminar archivos actuales de la base de datos para evitar conflictos
+                // Room genera archivos -shm y -wal que si no se borran pueden corromper la restauración.
+                val dbDir = dbFile.parentFile
+                listOf(dbFile, File("${dbFile.path}-shm"), File("${dbFile.path}-wal")).forEach {
+                    if (it.exists()) it.delete()
+                }
+
+                // 3. Extraer archivos del ZIP
                 appContext.contentResolver.openInputStream(zipUri)?.use { input ->
                     ZipInputStream(input).use { zip ->
                         var entry: ZipEntry? = zip.nextEntry
                         while (entry != null) {
-                            val outFile = File(dbFile.parentFile, entry.name)
-                            FileOutputStream(outFile).use { output ->
-                                zip.copyTo(output)
+                            // Validamos que el nombre del archivo sea uno de los esperados
+                            if (entry.name.contains(DB_NAME)) {
+                                val outFile = File(dbDir, entry.name)
+                                FileOutputStream(outFile).use { output ->
+                                    zip.copyTo(output)
+                                }
                             }
                             zip.closeEntry()
                             entry = zip.nextEntry
