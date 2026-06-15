@@ -1,11 +1,15 @@
 package com.chrismr.vigilancia.ui.patients
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +21,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -53,7 +60,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -67,7 +73,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PatientFormScreen(
     patientId: Long?,
@@ -89,7 +95,7 @@ fun PatientFormScreen(
                 title = {
                     Text(
                         if (patientId == null) "Nuevo Paciente" else "Editar Paciente",
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.ExtraBold
                     )
                 },
                 navigationIcon = {
@@ -104,6 +110,36 @@ fun PatientFormScreen(
                 )
             )
         },
+        bottomBar = {
+            if (!vm.isLoading) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 2.dp,
+                    shadowElevation = 12.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Button(
+                        onClick = vm::save,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            if (patientId == null) "Guardar Registro" else "Actualizar Ficha",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         if (vm.isLoading) {
@@ -117,84 +153,121 @@ fun PatientFormScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 FormHeroCard(isEditing = patientId != null)
 
-                // ── Sección: Identificación ──────────────────────────────
-                FormSection(title = "Identificación") {
-                    FormField(
-                        "Nombres y Apellidos *",
-                        vm.nombreCompleto
-                    ) { vm.nombreCompleto = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    FormField(
-                        label = "DNI *",
-                        value = vm.dni,
-                        keyboardType = KeyboardType.Number,
-                        errorMessage = vm.dniError,
-                        maxLength = 8,
-                        numbersOnly = true
-                    ) { vm.dni = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    SexoDropdown(vm.sexo) { vm.sexo = it }
-                }
-
-                // ── Sección: Datos clínicos ──────────────────────────────
-                FormSection(title = "Datos clínicos") {
-                    EdadField(
-                        numero = vm.edadNumero,
-                        unidad = vm.edadUnidad,
-                        onNumeroChange = { vm.edadNumero = it },
-                        onUnidadChange = { vm.edadUnidad = it }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    val fechaNacimientoEstimada = remember(vm.edadNumero, vm.edadUnidad) {
-                        val n = vm.edadNumero.toIntOrNull() ?: return@remember null
-                        val local = Calendar.getInstance().apply {
-                            when (vm.edadUnidad) {
-                                "a" -> add(Calendar.YEAR, -n)
-                                "m" -> add(Calendar.MONTH, -n)
-                                "d" -> add(Calendar.DAY_OF_MONTH, -n)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // ── Sección: Identificación ──────────────────────────────
+                    Box(modifier = Modifier.weight(1f).widthIn(min = 340.dp)) {
+                        FormSection(title = "Identificación") {
+                            FormField(
+                                "Nombres y Apellidos *",
+                                vm.nombreCompleto
+                            ) { vm.nombreCompleto = it }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    FormField(
+                                        label = "DNI *",
+                                        value = vm.dni,
+                                        keyboardType = KeyboardType.Number,
+                                        errorMessage = vm.dniError,
+                                        maxLength = 8,
+                                        numbersOnly = true
+                                    ) { vm.dni = it }
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    SexoDropdown(vm.sexo) { vm.sexo = it }
+                                }
                             }
                         }
-                        Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                            set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }.timeInMillis
                     }
-                    DatePickerField(
-                        label = "Fecha de Nacimiento",
-                        value = vm.fechaNacimiento,
-                        onValueChange = { vm.fechaNacimiento = it },
-                        estimatedMillis = fechaNacimientoEstimada
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    DatePickerField(
-                        label = "Fecha de Ingreso",
-                        value = vm.fechaIngreso,
-                        onValueChange = { vm.fechaIngreso = it }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    FormField("Diagnóstico", vm.diagnostico) { vm.diagnostico = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    FormField(
-                        label = "Nº de Cama",
-                        value = vm.numeroCama,
-                        keyboardType = KeyboardType.Text
-                    ) { vm.numeroCama = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    FormField(
-                        "Intervención Quirúrgica",
-                        vm.intervencionQuirurgica
-                    ) { vm.intervencionQuirurgica = it }
+
+                    // ── Sección: Datos clínicos ──────────────────────────────
+                    Box(modifier = Modifier.weight(1f).widthIn(min = 340.dp)) {
+                        FormSection(title = "Datos clínicos") {
+                            EdadField(
+                                numero = vm.edadNumero,
+                                unidad = vm.edadUnidad,
+                                onNumeroChange = { vm.edadNumero = it },
+                                onUnidadChange = { vm.edadUnidad = it }
+                            )
+                            val fechaNacimientoEstimada = remember(vm.edadNumero, vm.edadUnidad) {
+                                val n = vm.edadNumero.toIntOrNull() ?: return@remember null
+                                val local = Calendar.getInstance().apply {
+                                    when (vm.edadUnidad) {
+                                        "a" -> add(Calendar.YEAR, -n)
+                                        "m" -> add(Calendar.MONTH, -n)
+                                        "d" -> add(Calendar.DAY_OF_MONTH, -n)
+                                    }
+                                }
+                                Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                    set(
+                                        local.get(Calendar.YEAR),
+                                        local.get(Calendar.MONTH),
+                                        local.get(Calendar.DAY_OF_MONTH),
+                                        0,
+                                        0,
+                                        0
+                                    )
+                                    set(Calendar.MILLISECOND, 0)
+                                }.timeInMillis
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(1f)) {
+                                    DatePickerField(
+                                        label = "Fecha Nacimiento",
+                                        value = vm.fechaNacimiento,
+                                        onValueChange = { vm.fechaNacimiento = it },
+                                        estimatedMillis = fechaNacimientoEstimada
+                                    )
+                                }
+                                Box(modifier = Modifier.weight(1f)) {
+                                    DatePickerField(
+                                        label = "Fecha Ingreso",
+                                        value = vm.fechaIngreso,
+                                        onValueChange = { vm.fechaIngreso = it }
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(modifier = Modifier.weight(0.65f)) {
+                                    FormField("Diagnóstico", vm.diagnostico) { vm.diagnostico = it }
+                                }
+                                Box(modifier = Modifier.weight(0.35f)) {
+                                    FormField(
+                                        label = "Nº Cama",
+                                        value = vm.numeroCama,
+                                        keyboardType = KeyboardType.Text
+                                    ) { vm.numeroCama = it }
+                                }
+                            }
+                            FormField(
+                                "Intervención Quirúrgica",
+                                vm.intervencionQuirurgica
+                            ) { vm.intervencionQuirurgica = it }
+                        }
+                    }
                 }
 
                 // ── Error general ────────────────────────────────────────
                 if (vm.result is FormResult.Error) {
                     Card(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer
                         )
@@ -203,121 +276,67 @@ fun PatientFormScreen(
                             text = (vm.result as FormResult.Error).message,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(12.dp)
+                            modifier = Modifier.padding(16.dp)
                         )
                     }
                 }
 
-                // ── Botón guardar ────────────────────────────────────────
-                Button(
-                    onClick = vm::save,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        if (patientId == null) "Guardar Paciente" else "Actualizar Paciente",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 }
 
 @Composable
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun FormHeroCard(isEditing: Boolean) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.primary,
+        shadowElevation = 4.dp
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
                         )
                     )
                 )
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)),
-                    contentAlignment = Alignment.Center
-                ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.DateRange,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isEditing) "Actualizar ficha del paciente" else "Registrar nuevo paciente",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Completa los datos principales para mantener la vigilancia clínica bien organizada.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FormBadge("Identificación")
-                FormBadge("Datos clínicos")
-                FormBadge(if (isEditing) "Modo edición" else "Nuevo registro")
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isEditing) "Editar Ficha" else "Nuevo Paciente",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    text = "Vigilancia Epidemiológica Activa",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                )
             }
         }
-    }
-}
-
-@Composable
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-private fun FormBadge(text: String) {
-    Box(
-        modifier = Modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
     }
 }
 
@@ -328,27 +347,21 @@ private fun FormSection(title: String, content: @Composable () -> Unit) {
         Text(
             text = title.uppercase(),
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 6.dp, bottom = 8.dp)
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+            modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
+            letterSpacing = 1.sp
         )
-        Card(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 1.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                            )
-                        )
-                    )
-                    .padding(16.dp)
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 content()
             }
@@ -380,14 +393,14 @@ private fun DatePickerField(
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
+            label = { Text(label, fontWeight = FontWeight.Medium) },
             modifier = Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
             ),
             trailingIcon = {
                 Icon(
@@ -441,12 +454,14 @@ private fun EdadField(
     var expanded by remember { mutableStateOf(false) }
     val etiqueta = opciones.firstOrNull { it.first == unidad }?.second ?: "años"
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-        focusedBorderColor = MaterialTheme.colorScheme.primary
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         OutlinedTextField(
             value = numero,
@@ -454,26 +469,26 @@ private fun EdadField(
                 val filtered = v.filter { it.isDigit() }
                 if (filtered.length <= 3) onNumeroChange(filtered)
             },
-            label = { Text("Edad") },
+            label = { Text("Edad", fontWeight = FontWeight.Medium) },
             modifier = Modifier.weight(1f),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = fieldColors
         )
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it },
-            modifier = Modifier.width(130.dp)
+            modifier = Modifier.width(140.dp)
         ) {
             OutlinedTextField(
                 value = etiqueta,
                 onValueChange = {},
                 readOnly = true,
-                label = { Text("Unidad") },
+                label = { Text("Unidad", fontWeight = FontWeight.Medium) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = fieldColors
             )
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -504,22 +519,22 @@ private fun FormField(
             val filtered = if (numbersOnly) newValue.filter { it.isDigit() } else newValue
             if (filtered.length <= maxLength) onValueChange(filtered)
         },
-        label = { Text(label) },
+        label = { Text(label, fontWeight = FontWeight.Medium) },
         modifier = Modifier.fillMaxWidth(),
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         singleLine = true,
         isError = errorMessage.isNotEmpty(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             errorBorderColor = MaterialTheme.colorScheme.error,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-            errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f)
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+            errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
         ),
         supportingText = if (errorMessage.isNotEmpty()) {
-            { Text(errorMessage, color = MaterialTheme.colorScheme.error) }
+            { Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall) }
         } else null
     )
 }
@@ -534,17 +549,17 @@ private fun SexoDropdown(value: String, onSelect: (String) -> Unit) {
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Sexo") },
+            label = { Text("Sexo", fontWeight = FontWeight.Medium) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
             )
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

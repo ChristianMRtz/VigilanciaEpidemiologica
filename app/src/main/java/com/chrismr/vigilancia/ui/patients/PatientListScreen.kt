@@ -2,6 +2,7 @@ package com.chrismr.vigilancia.ui.patients
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -85,6 +87,9 @@ import com.chrismr.vigilancia.ui.theme.Avatar6
 import com.chrismr.vigilancia.ui.theme.Avatar7
 import com.chrismr.vigilancia.ui.theme.Avatar8
 import com.chrismr.vigilancia.util.DateUtils
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val avatarPalette = listOf(Avatar1, Avatar2, Avatar3, Avatar4, Avatar5, Avatar6, Avatar7, Avatar8)
 
@@ -105,6 +110,7 @@ fun PatientListScreen(
     val query by vm.searchQuery.collectAsState()
     val currentFilter by vm.filter.collectAsState()
     var patientToDelete by remember { mutableStateOf<PatientModel?>(null) }
+    var patientToPermanentlyDelete by remember { mutableStateOf<PatientModel?>(null) }
     var showExportPicker by remember { mutableStateOf(false) }
     var showYearPicker   by remember { mutableStateOf(false) }
     var menuExpanded     by remember { mutableStateOf(false) }
@@ -232,9 +238,17 @@ fun PatientListScreen(
                         PatientCard(
                             patient = item.patient,
                             isDischarged = item.isDischarged,
+                            isDeleted = currentFilter == PatientFilter.PAPELERA,
                             onEdit = { onEditPatient(item.patient.id) },
                             onMonitoring = { onMonitoring(item.patient.id) },
-                            onDelete = { patientToDelete = item.patient }
+                            onDelete = {
+                                if (currentFilter == PatientFilter.PAPELERA) {
+                                    patientToPermanentlyDelete = item.patient
+                                } else {
+                                    patientToDelete = item.patient
+                                }
+                            },
+                            onRestore = { vm.restorePatient(item.patient.id) }
                         )
                     }
                 }
@@ -242,15 +256,14 @@ fun PatientListScreen(
         }
     }
 
-    // ── Diálogo de confirmación de eliminación ─────────────────────────────
+    // ── Diálogo de confirmación de borrado lógico (Mover a Papelera) ──────────
     patientToDelete?.let { patient ->
         AlertDialog(
             onDismissRequest = { patientToDelete = null },
-            title = { Text("Eliminar paciente", fontWeight = FontWeight.SemiBold) },
+            title = { Text("Mover a la papelera", fontWeight = FontWeight.SemiBold) },
             text = {
                 Text(
-                    "¿Deseas eliminar a ${patient.nombreCompleto}? " +
-                            "Esta acción eliminará también todos sus registros de seguimiento.",
+                    "¿Deseas mover a ${patient.nombreCompleto} a la papelera? Podrás restaurarlo más tarde desde la sección \"Papelera\".",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -265,11 +278,43 @@ fun PatientListScreen(
                     ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Eliminar")
+                    Text("Mover a papelera")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { patientToDelete = null }) { Text("Cancelar") }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // ── Diálogo de confirmación de borrado permanente ─────────────────────────
+    patientToPermanentlyDelete?.let { patient ->
+        AlertDialog(
+            onDismissRequest = { patientToPermanentlyDelete = null },
+            title = { Text("Eliminar permanentemente", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Text(
+                    "¿Estás seguro de eliminar a ${patient.nombreCompleto} de forma permanente? Esta acción no se puede deshacer y borrará todo su historial.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        vm.deletePatientPermanently(patient)
+                        patientToPermanentlyDelete = null
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Eliminar para siempre")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { patientToPermanentlyDelete = null }) { Text("Cancelar") }
             },
             shape = RoundedCornerShape(20.dp)
         )
@@ -298,7 +343,7 @@ fun PatientListScreen(
 
 @Composable
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-private fun PatientListHeader(
+fun PatientListHeader(
     patientCount: Int,
     currentFilter: PatientFilter,
     query: String,
@@ -306,129 +351,122 @@ private fun PatientListHeader(
     onClearQuery: () -> Unit,
     onFilterSelected: (PatientFilter) -> Unit
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp),
+        shadowElevation = 6.dp
     ) {
         Column(
             modifier = Modifier
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f)
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
                         )
                     )
                 )
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(top = 12.dp, bottom = 24.dp)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column {
                     Text(
-                        text = "Pacientes en vigilancia",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = if (currentFilter == PatientFilter.PAPELERA) "Papelera" else "Pacientes",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                     Text(
-                        text = "$patientCount registro${if (patientCount != 1) "s" else ""} disponible${if (patientCount != 1) "s" else ""}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "$patientCount registro${if (patientCount != 1) "s" else ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                     )
                 }
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.DateRange,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = currentFilter.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
+                    Text(
+                        text = currentFilter.label,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
+
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        "Buscar por nombre o DNI",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(18.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                ),
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = onClearQuery) {
-                            Icon(
-                                Icons.Default.Clear,
-                                contentDescription = "Limpiar",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(
+                            "Buscar nombre o DNI...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(20.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent
+                    ),
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = onClearQuery) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
-                }
-            )
+                )
+            }
+
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 PatientFilter.entries.forEach { f ->
-                    FilterChip(
-                        selected = currentFilter == f,
+                    val isSelected = currentFilter == f
+                    Surface(
                         onClick = { onFilterSelected(f) },
-                        label = {
-                            Text(
-                                f.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (currentFilter == f) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    )
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f) else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f) else Color.Transparent)
+                    ) {
+                        Text(
+                            f.label,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }
@@ -444,13 +482,14 @@ private fun EmptyPatientsState(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 32.dp),
         contentAlignment = Alignment.Center
     ) {
-        Card(
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 4.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f))
         ) {
             Column(
                 modifier = Modifier
@@ -458,60 +497,64 @@ private fun EmptyPatientsState(
                         brush = Brush.verticalGradient(
                             colors = listOf(
                                 MaterialTheme.colorScheme.surface,
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f)
                             )
                         )
                     )
-                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                    .padding(horizontal = 32.dp, vertical = 40.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(80.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)),
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.Add,
+                        if (currentFilter == PatientFilter.PAPELERA) Icons.Default.Delete else Icons.Default.Add,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(36.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     text = when {
                         query.isNotBlank() -> "Sin resultados para \"$query\""
                         currentFilter == PatientFilter.ACTIVOS -> "No hay pacientes activos este mes"
                         currentFilter == PatientFilter.CON_ALTA -> "Ningún paciente tiene alta este mes"
+                        currentFilter == PatientFilter.PAPELERA -> "La papelera está vacía"
                         else -> "Todavía no hay pacientes registrados"
                     },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = if (query.isNotBlank()) {
                         "Prueba con otro nombre o elimina el filtro para ver más resultados."
+                    } else if (currentFilter == PatientFilter.PAPELERA) {
+                        "Aquí aparecerán los pacientes que elimines. Podrás restaurarlos o borrarlos definitivamente."
                     } else {
                         "Agrega un paciente para comenzar el seguimiento diario desde una interfaz más rápida y ordenada."
                     },
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
-                if (query.isBlank()) {
-                    Spacer(modifier = Modifier.height(18.dp))
+                if (query.isBlank() && currentFilter != PatientFilter.PAPELERA) {
+                    Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = onAddPatient,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(56.dp).fillMaxWidth(0.7f)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Agregar paciente")
+                        Text("Agregar paciente", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -525,30 +568,24 @@ private fun EmptyPatientsState(
 private fun PatientCard(
     patient: PatientModel,
     isDischarged: Boolean,
+    isDeleted: Boolean = false,
     onEdit: () -> Unit,
     onMonitoring: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onRestore: () -> Unit = {}
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onMonitoring() },
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .clickable { if (!isDeleted) onMonitoring() },
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 3.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
-                        )
-                    )
-                )
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -557,63 +594,56 @@ private fun PatientCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 PatientAvatar(name = patient.nombreCompleto)
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = patient.nombreCompleto,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = patient.nombreCompleto,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f, fill = false)
+                            text = "DNI ${patient.dni}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            fontWeight = FontWeight.Bold
                         )
-                        if (isDischarged) {
+                        if (isDischarged && !isDeleted) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                shape = RoundedCornerShape(8.dp)
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                                shape = CircleShape
                             ) {
                                 Text(
                                     "ALTA",
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 9.sp
                                 )
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "DNI ${patient.dni}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f)
-                ) {
-                    Text(
-                        text = "Abrir",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+                Icon(
+                    imageVector = if (isDeleted) Icons.Default.Delete else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                PatientMetaChip("DNI", patient.dni)
-                if (patient.numeroCama.isNotBlank()) PatientMetaChip("Cama", patient.numeroCama)
-                if (patient.diagnostico.isNotBlank()) {
-                    PatientMetaChip("Dx", patient.diagnostico)
+            if (!isDeleted && (patient.numeroCama.isNotBlank() || patient.diagnostico.isNotBlank())) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (patient.numeroCama.isNotBlank()) PatientMetaChip("Cama", patient.numeroCama)
+                    if (patient.diagnostico.isNotBlank()) PatientMetaChip("Dx", patient.diagnostico)
                 }
             }
 
@@ -621,27 +651,37 @@ private fun PatientCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                PatientActionButton(
-                    label = "Seguimiento",
-                    icon = Icons.Default.DateRange,
-                    iconTint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                    onClick = onMonitoring
-                )
-                PatientActionButton(
-                    label = "Editar",
-                    icon = Icons.Default.Edit,
-                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                    onClick = onEdit
-                )
-                PatientActionButton(
-                    label = "Eliminar",
-                    icon = Icons.Default.Delete,
-                    iconTint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.weight(1f),
-                    onClick = onDelete
-                )
+                if (isDeleted) {
+                    PatientActionButton(
+                        label = "Restaurar",
+                        icon = Icons.Default.Refresh,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                        onClick = onRestore
+                    )
+                    PatientActionButton(
+                        label = "Eliminar",
+                        icon = Icons.Default.Delete,
+                        iconTint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f),
+                        onClick = onDelete
+                    )
+                } else {
+                    PatientActionButton(
+                        label = "Editar",
+                        icon = Icons.Default.Edit,
+                        iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                        onClick = onEdit
+                    )
+                    PatientActionButton(
+                        label = "Borrar",
+                        icon = Icons.Default.Delete,
+                        iconTint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f),
+                        modifier = Modifier.weight(1f),
+                        onClick = onDelete
+                    )
+                }
             }
         }
     }
@@ -650,18 +690,32 @@ private fun PatientCard(
 @Composable
 private fun PatientMetaChip(label: String, value: String) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
-        Text(
-            text = "$label: $value",
+        Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 10.sp
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 10.sp
+            )
+        }
     }
 }
 
@@ -676,29 +730,26 @@ private fun PatientActionButton(
     Surface(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                shape = RoundedCornerShape(16.dp)
-            ),
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 10.dp),
+                .padding(vertical = 10.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 11.sp
             )
         }
     }
@@ -718,7 +769,7 @@ private fun PatientAvatar(name: String) {
 
     Box(
         modifier = Modifier
-            .size(48.dp)
+            .size(42.dp)
             .clip(CircleShape)
             .background(bgColor),
         contentAlignment = Alignment.Center
@@ -727,7 +778,7 @@ private fun PatientAvatar(name: String) {
             text = initials,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = 17.sp,
+            fontSize = 15.sp,
             textAlign = TextAlign.Center
         )
     }

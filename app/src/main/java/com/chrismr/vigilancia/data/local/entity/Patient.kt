@@ -23,5 +23,7 @@ data class Patient(
     val fechaIngreso: String,
     val diagnostico: String,
     val numeroCama: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null
 )

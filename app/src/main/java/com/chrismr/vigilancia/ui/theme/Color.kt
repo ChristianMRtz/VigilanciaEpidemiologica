@@ -17,15 +17,14 @@ val Teal90     = Color(0xFFC8F4EF)
 val Violet40   = Color(0xFF7A5EA6)
 val Violet80   = Color(0xFFDCCBFF)
 
-val NeutralBg  = Color(0xFFF5F1E8)
-val NeutralBg2 = Color(0xFFE8E0D1)
-val SandSurface = Color(0xFFFFFCF6)
-val Ink900 = Color(0xFF1E2A32)
+val NeutralBg  = Color(0xFFF8F9FA)
+val NeutralBg2 = Color(0xFFE9ECEF)
+val SandSurface = Color(0xFFFFFFFF)
+val Ink900 = Color(0xFF1A1C1E)
 val Gold40 = Color(0xFFC6923B)
 val Gold90 = Color(0xFFF7E5BF)
 
-// Status colors (calendario) ─────────────────────────────────────────────────
-// Fondos sólidos con texto blanco para máxima diferenciación
+// Status colors (calendario) - Solid Semantic Palette
 val StatusGreen    = Color.White
 val StatusGreenBg  = Color(0xFF2E8B57)
 

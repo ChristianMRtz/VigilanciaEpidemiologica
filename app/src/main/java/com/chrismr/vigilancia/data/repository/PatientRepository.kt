@@ -15,6 +15,9 @@ class PatientRepository(private val dao: PatientDao) {
     fun searchPatients(query: String): Flow<List<PatientModel>> =
         dao.searchPatients(query).map { list -> list.map { it.toModel() } }
 
+    fun getDeletedPatients(): Flow<List<PatientModel>> =
+        dao.getDeletedPatients().map { list -> list.map { it.toModel() } }
+
     suspend fun getPatientById(id: Long): PatientModel? =
         dao.getPatientById(id)?.toModel()
 
@@ -30,7 +33,15 @@ class PatientRepository(private val dao: PatientDao) {
     suspend fun updatePatient(patient: PatientModel) =
         dao.updatePatient(patient.toEntity())
 
+    /** Mueve el paciente a la papelera (borrado lógico). */
     suspend fun deletePatient(patient: PatientModel) =
-        dao.deletePatient(patient.toEntity())
-}
+        dao.moveToTrash(patient.id)
 
+    /** Restaura al paciente de la papelera. */
+    suspend fun restorePatient(id: Long) =
+        dao.restoreFromTrash(id)
+
+    /** Elimina permanentemente al paciente de la BD. */
+    suspend fun deletePatientPermanently(patient: PatientModel) =
+        dao.deletePatientPermanently(patient.toEntity())
+}

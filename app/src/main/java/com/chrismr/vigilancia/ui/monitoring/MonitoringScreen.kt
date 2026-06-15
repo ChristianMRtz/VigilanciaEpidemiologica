@@ -28,7 +28,13 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -139,33 +145,28 @@ fun MonitoringScreen(
                 )
             }
         },
-        bottomBar = {
-            if (isSelectionMode) {
-                SelectionActionBar(
-                    count = selectedDays.size,
-                    onContinua = { vm.applyStatusToSelected(MonitoringStatus.CONTINUA) },
-                    onSinDispositivo = { vm.applyStatusToSelected(MonitoringStatus.SIN_DISPOSITIVO) },
-                    onLimpiar = { vm.applyStatusToSelected(MonitoringStatus.VACIO) },
-                    onCancel = { vm.clearSelection() }
-                )
-            }
-        },
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = patient?.nombreCompleto ?: "Seguimiento",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        patient?.diagnostico?.let {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = it,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                                text = patient?.nombreCompleto ?: "Seguimiento",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            patient?.diagnostico?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 },
@@ -189,167 +190,189 @@ fun MonitoringScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            MonthSummaryCard(
-                month = month,
-                year = year,
-                onPreviousMonth = vm::previousMonth,
-                onNextMonth = vm::nextMonth
-            )
+        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                MonthSummaryCard(
+                    month = month,
+                    year = year,
+                    onPreviousMonth = vm::previousMonth,
+                    onNextMonth = vm::nextMonth
+                )
 
-            // ── Banner: mes bloqueado por Alta ────────────────────────────
-            if (isEntireMonthLocked && egresoRecord != null) {
-                val r = egresoRecord!!
+                // ── Leyenda de estados (más compacta) ─────────────────────────
+                StatusLegend()
+
+                // ── Banner: mes bloqueado por Alta ────────────────────────────
+                if (isEntireMonthLocked && egresoRecord != null) {
+                    val r = egresoRecord!!
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Alta el ${r.day.toString().padStart(2,'0')}/" +
+                                    "${r.month.toString().padStart(2,'0')}/${r.year} — mes bloqueado",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // ── Calendario (ocupa todo el espacio restante) ───────────────
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    )
+                        .weight(1f)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp, vertical = 12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Alta el ${r.day.toString().padStart(2,'0')}/" +
-                                "${r.month.toString().padStart(2,'0')}/${r.year} — mes bloqueado",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-
-            // ── Calendario (ocupa todo el espacio restante) ───────────────
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .padding(bottom = 8.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 10.dp, vertical = 10.dp)
-                ) {
-                    val totalCells = firstOffset + days.size
-                    val rows = (totalCells + 6) / 7
-                    val egresoDay = monitoringMap.values
-                        .firstOrNull { it.status == MonitoringStatus.EGRESO }?.day
-                    val cellSpacing = 4.dp
-                    val cellHeight = remember(maxHeight, rows) {
-                        ((maxHeight - 36.dp - (cellSpacing * (rows - 1).coerceAtLeast(0))) / rows)
-                            .coerceAtLeast(52.dp)
-                    }
-
-                    Column(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                    // Cabecera días de semana
-                    val weekDays = listOf("L", "M", "X", "J", "V", "S", "D")
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(cellSpacing)
-                    ) {
-                        weekDays.forEach { label ->
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f))
-                                    .padding(vertical = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
+                        val availableH = maxHeight
+                        val totalCells = firstOffset + days.size
+                        val rows = (totalCells + 6) / 7
+                        val egresoDay = monitoringMap.values
+                            .firstOrNull { it.status == MonitoringStatus.EGRESO }?.day
+                        val cellSpacing = 6.dp
+                        val cellHeight = remember(availableH, rows) {
+                            ((availableH - 40.dp - (cellSpacing * (rows - 1).coerceAtLeast(0))) / rows)
+                                .coerceAtLeast(48.dp)
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Cada fila ocupa 1/numRows del espacio disponible
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(cellSpacing)
-                    ) {
-                        for (row in 0 until rows) {
+                        Column(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            // Cabecera días de semana
+                            val weekDays = listOf("L", "M", "X", "J", "V", "S", "D")
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(cellSpacing)
                             ) {
-                                for (col in 0 until 7) {
-                                    val cellIndex = row * 7 + col
-                                    val day = cellIndex - firstOffset + 1
-                                    if (day < 1 || day > days.size) {
-                                        Box(modifier = Modifier.weight(1f).fillMaxHeight())
-                                    } else {
-                                        val status = monitoringMap[day]?.status ?: MonitoringStatus.VACIO
-                                        val isLocked = isEntireMonthLocked || (egresoDay != null && day > egresoDay)
-                                        val isSelected = day in selectedDays
-                                        CalendarDayCell(
-                                            day = day,
-                                            status = status,
-                                            locked = isLocked,
-                                            isSelected = isSelected,
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight(),
-                                            minHeight = cellHeight,
-                                            onClick = {
-                                                if (isSelectionMode) vm.toggleDaySelection(day)
-                                                else if (!isLocked) {
-                                                    val currentStatus = monitoringMap[day]?.status
-                                                        ?: MonitoringStatus.VACIO
-                                                    if (!hasInicio && currentStatus == MonitoringStatus.VACIO) {
-                                                        vm.setStatus(day, MonitoringStatus.INICIO)
-                                                    } else {
-                                                        dayToEdit = day
-                                                    }
-                                                }
-                                            },
-                                            onLongClick = {
-                                                if (!isLocked) vm.toggleDaySelection(day)
-                                            }
+                                weekDays.forEach { label ->
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(vertical = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            textAlign = TextAlign.Center,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                                         )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Grid
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(cellSpacing)
+                            ) {
+                                for (row in 0 until rows) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        horizontalArrangement = Arrangement.spacedBy(cellSpacing)
+                                    ) {
+                                        for (col in 0 until 7) {
+                                            val cellIndex = row * 7 + col
+                                            val day = cellIndex - firstOffset + 1
+                                            if (day < 1 || day > days.size) {
+                                                Box(modifier = Modifier.weight(1f).fillMaxHeight())
+                                            } else {
+                                                val status = monitoringMap[day]?.status ?: MonitoringStatus.VACIO
+                                                val isLocked = isEntireMonthLocked || (egresoDay != null && day > egresoDay)
+                                                val isSelected = day in selectedDays
+                                                CalendarDayCell(
+                                                    day = day,
+                                                    status = status,
+                                                    locked = isLocked,
+                                                    isSelected = isSelected,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight(),
+                                                    minHeight = cellHeight,
+                                                    onClick = {
+                                                        if (isSelectionMode) vm.toggleDaySelection(day)
+                                                        else if (!isLocked) {
+                                                            val currentStatus = monitoringMap[day]?.status
+                                                                ?: MonitoringStatus.VACIO
+                                                            if (!hasInicio && currentStatus == MonitoringStatus.VACIO) {
+                                                                vm.setStatus(day, MonitoringStatus.INICIO)
+                                                            } else {
+                                                                dayToEdit = day
+                                                            }
+                                                        }
+                                                    },
+                                                    onLongClick = {
+                                                        if (!isLocked) vm.toggleDaySelection(day)
+                                                    }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    }
+                }
+            }
+
+            // ── Barra de herramientas flotante (Glassmorphism) ────────────
+            if (isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp)
+                ) {
+                    SelectionActionBar(
+                        count = selectedDays.size,
+                        onContinua = { vm.applyStatusToSelected(MonitoringStatus.CONTINUA) },
+                        onSinDispositivo = { vm.applyStatusToSelected(MonitoringStatus.SIN_DISPOSITIVO) },
+                        onLimpiar = { vm.applyStatusToSelected(MonitoringStatus.VACIO) },
+                        onCancel = { vm.clearSelection() }
+                    )
                 }
             }
         }
@@ -422,7 +445,7 @@ fun MonitoringScreen(
 // ── Celda del calendario ───────────────────────────────────────────────────
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CalendarDayCell(
+fun CalendarDayCell(
     day: Int,
     status: MonitoringStatus,
     modifier: Modifier = Modifier,
@@ -439,12 +462,12 @@ private fun CalendarDayCell(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(bgFinal)
             .border(
-                width = if (isSelected) 2.dp else 1.dp,
+                width = if (isSelected) 2.5.dp else 0.dp,
                 color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(16.dp)
             )
             .then(
                 if (!locked)
@@ -456,28 +479,28 @@ private fun CalendarDayCell(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
+                .padding(horizontal = 2.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = day.toString(),
                 fontWeight = FontWeight.Bold,
-                fontSize = if (minHeight < 62.dp) 15.sp else 17.sp,
+                fontSize = if (minHeight < 48.dp) 13.sp else 15.sp,
                 color = fgFinal,
-                lineHeight = 18.sp
+                lineHeight = 16.sp
             )
             if (status != MonitoringStatus.VACIO && !locked) {
                 Text(
                     text = status.shortName,
-                    fontSize = if (minHeight < 62.dp) 9.sp else 10.sp,
+                    fontSize = if (minHeight < 48.dp) 8.sp else 9.sp,
                     color = fgFinal.copy(alpha = 0.85f),
                     textAlign = TextAlign.Center,
-                    lineHeight = 11.sp,
+                    lineHeight = 10.sp,
                     fontWeight = FontWeight.Medium
                 )
             } else {
-                Spacer(modifier = Modifier.height(11.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
         if (isSelected) {
@@ -495,76 +518,77 @@ private fun CalendarDayCell(
 
 // ── Barra de acción de selección ───────────────────────────────────────────
 @Composable
-private fun SelectionActionBar(
+fun SelectionActionBar(
     count: Int,
     onContinua: () -> Unit,
     onSinDispositivo: () -> Unit,
     onLimpiar: () -> Unit,
     onCancel: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    Surface(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+        tonalElevation = 12.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "$count seleccionado${if (count != 1) "s" else ""}",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f)
-            )
-            FilledTonalButton(
-                onClick = onContinua,
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Color(0xFF1E88E5),
-                    contentColor = Color.White
-                )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Continúa",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
+                    text = count.toString(),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
                 )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            FilledTonalButton(
+                onClick = onContinua,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = StatusBlueBg,
+                    contentColor = StatusBlue
+                )
+            ) {
+                Text("Continúa", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
             FilledTonalButton(
                 onClick = onSinDispositivo,
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                 colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Color(0xFF78909C),
-                    contentColor = Color.White
+                    containerColor = StatusGrayBg,
+                    contentColor = StatusGray
                 )
             ) {
-                Text(
-                    text = "Sin disp.",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
+                Text("Sin disp.", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
-            FilledTonalButton(
+            IconButton(
                 onClick = onLimpiar,
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) { Text("Limpiar", fontSize = 11.sp, maxLines = 1) }
-            TextButton(onClick = onCancel) {
-                Text("Cancelar", style = MaterialTheme.typography.labelMedium)
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = onCancel) {
+                Icon(Icons.Default.Clear, contentDescription = "Cancelar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -576,15 +600,15 @@ fun StatusChip(status: MonitoringStatus) {
     val (bg, fg) = statusColors(status)
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(bg)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = status.displayName,
             color = fg,
-            fontSize = 15.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
@@ -597,7 +621,7 @@ private fun StatusLegend() {
     FlowRow(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -614,75 +638,75 @@ private fun MonthSummaryCard(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit
 ) {
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.primary,
+        shadowElevation = 4.dp
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.secondary
                         )
                     )
                 )
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            IconButton(
+                onClick = onPreviousMonth,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
             ) {
-                IconButton(
-                    onClick = onPreviousMonth,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
-                        .size(38.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Mes anterior",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Seguimiento del mes",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = DateUtils.formatMonthYear(month, year),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                IconButton(
-                    onClick = onNextMonth,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f))
-                        .size(38.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Mes siguiente",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = "Mes anterior",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
-            StatusLegend()
+
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Seguimiento del mes",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = DateUtils.formatMonthYear(month, year),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+
+            IconButton(
+                onClick = onNextMonth,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f))
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = "Mes siguiente",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
@@ -702,78 +726,99 @@ private fun StatusPickerDialog(
         title = {
             Text(
                 "Día $day — Asignar estado",
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.titleMedium
+                fontWeight = FontWeight.ExtraBold,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
                 opciones.chunked(2).forEach { fila ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         fila.forEach { s ->
                             val (bg, fg) = statusColors(s)
                             val isSelected = s == currentStatus
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(bg)
-                                    .border(
-                                        width = if (isSelected) 2.5.dp else 0.dp,
-                                        color = if (isSelected) fg else Color.Transparent,
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable { onSelect(s) }
-                                    .padding(vertical = 14.dp),
-                                contentAlignment = Alignment.Center
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                onClick = { onSelect(s) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = bg,
+                                border = if (isSelected) BorderStroke(3.dp, fg) else BorderStroke(1.dp, fg.copy(alpha = 0.3f))
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(
+                                    modifier = Modifier.padding(vertical = 16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
                                     Text(
                                         text = s.displayName,
                                         color = fg,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        textAlign = TextAlign.Center
                                     )
                                     if (isSelected) {
-                                        Text("✓", color = fg, fontSize = 11.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text("✓", color = fg, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     }
                                 }
                             }
                         }
-                        if (fila.size == 1) Box(modifier = Modifier.weight(1f))
+                        if (fila.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
                 }
 
-                HorizontalDivider(modifier = Modifier.padding(top = 4.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(4.dp))
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { onSelect(MonitoringStatus.VACIO) }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    onClick = { onSelect(MonitoringStatus.VACIO) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                 ) {
-                    Text(
-                        text = "Limpiar día",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 14.sp
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Limpiar día",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.ExtraBold,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", fontWeight = FontWeight.Bold)
+            }
         },
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface
     )
 }
+
 
 // ── Colores de estado ──────────────────────────────────────────────────────
 private fun statusColors(status: MonitoringStatus): Pair<Color, Color> = when (status) {

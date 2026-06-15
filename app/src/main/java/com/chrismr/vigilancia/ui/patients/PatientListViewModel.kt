@@ -24,7 +24,8 @@ import kotlinx.coroutines.launch
 enum class PatientFilter(val label: String) {
     ACTIVOS("Activos"),
     CON_ALTA("Con Alta"),
-    TODOS("Todos")
+    TODOS("Todos"),
+    PAPELERA("Papelera")
 }
 
 data class PatientWithStatus(
@@ -46,12 +47,16 @@ class PatientListViewModel(
         monitoringRepository.getDischargedPatientIds()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
-    private val allPatients: StateFlow<List<PatientModel>> = searchQuery
-        .flatMapLatest { query ->
+    private val allPatients: StateFlow<List<PatientModel>> = combine(searchQuery, filter) { query, f ->
+        query to f
+    }.flatMapLatest { (query, f) ->
+        if (f == PatientFilter.PAPELERA) {
+            repository.getDeletedPatients()
+        } else {
             if (query.isBlank()) repository.getAllPatients()
             else repository.searchPatients(query.trim())
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val patients: StateFlow<List<PatientWithStatus>> =
         combine(allPatients, filter, egresoPatientIds) { list, f, egreso ->
@@ -60,6 +65,7 @@ class PatientListViewModel(
                 PatientFilter.ACTIVOS  -> mapped.filter { !it.isDischarged }
                 PatientFilter.CON_ALTA -> mapped.filter { it.isDischarged }
                 PatientFilter.TODOS    -> mapped
+                PatientFilter.PAPELERA -> mapped // allPatients already returns deleted ones
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -68,6 +74,14 @@ class PatientListViewModel(
 
     fun deletePatient(patient: PatientModel) {
         viewModelScope.launch { repository.deletePatient(patient) }
+    }
+
+    fun restorePatient(patientId: Long) {
+        viewModelScope.launch { repository.restorePatient(patientId) }
+    }
+
+    fun deletePatientPermanently(patient: PatientModel) {
+        viewModelScope.launch { repository.deletePatientPermanently(patient) }
     }
 
     fun exportConsolidado(context: Context, year: Int, month: Int) {

@@ -4,10 +4,6 @@ import android.app.Application
 import com.chrismr.vigilancia.data.local.database.AppDatabase
 import com.chrismr.vigilancia.data.repository.MonitoringRepository
 import com.chrismr.vigilancia.data.repository.PatientRepository
-import com.chrismr.vigilancia.util.DataSeeder
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 /**
  * Application entry-point. Expone los repositorios sin Hilt para
@@ -20,9 +16,5 @@ class VigilanciaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        // Poblar datos de prueba si la BD está vacía (desactivado para escenario real)
-        CoroutineScope(Dispatchers.IO).launch {
-            DataSeeder.seedIfEmpty(patientRepository, monitoringRepository)
-        }
     }
 }
