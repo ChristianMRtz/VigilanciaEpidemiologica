@@ -45,6 +45,10 @@ interface DailyMonitoringDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdate(monitoring: DailyMonitoring): Long
 
+    /** Obtiene los IDs de pacientes que han tenido EGRESO en cualquier momento. */
+    @Query("SELECT DISTINCT patientId FROM daily_monitorings WHERE status = 'EGRESO'")
+    fun getDischargedPatientIds(): Flow<List<Long>>
+
     @Query("""
         DELETE FROM daily_monitorings
         WHERE patientId = :patientId AND year = :year AND month = :month AND day = :day

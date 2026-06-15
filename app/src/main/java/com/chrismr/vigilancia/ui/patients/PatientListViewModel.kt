@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import android.content.Context
+import android.net.Uri
 import com.chrismr.vigilancia.data.repository.MonitoringRepository
 import com.chrismr.vigilancia.data.repository.PatientRepository
-import com.chrismr.vigilancia.domain.enums.MonitoringStatus
 import com.chrismr.vigilancia.domain.model.PatientModel
 import com.chrismr.vigilancia.util.DateUtils
 import com.chrismr.vigilancia.util.BackupManager
@@ -27,6 +27,11 @@ enum class PatientFilter(val label: String) {
     TODOS("Todos")
 }
 
+data class PatientWithStatus(
+    val patient: PatientModel,
+    val isDischarged: Boolean
+)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class PatientListViewModel(
     private val repository: PatientRepository,
@@ -36,19 +41,10 @@ class PatientListViewModel(
     val searchQuery = MutableStateFlow("")
     val filter = MutableStateFlow(PatientFilter.ACTIVOS)
 
-    // IDs de pacientes que tienen Alta en el mes actual
+    // IDs de pacientes que tienen Alta en cualquier momento
     private val egresoPatientIds: StateFlow<Set<Long>> =
-        monitoringRepository.getAllMonitoringForMonthFlow(
-            DateUtils.getCurrentYear(),
-            DateUtils.getCurrentMonth()
-        ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-            .let { monitoringFlow ->
-                combine(monitoringFlow) { (list) ->
-                    list.filter { it.status == MonitoringStatus.EGRESO }
-                        .map { it.patientId }
-                        .toSet()
-                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
-            }
+        monitoringRepository.getDischargedPatientIds()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val allPatients: StateFlow<List<PatientModel>> = searchQuery
         .flatMapLatest { query ->
@@ -57,12 +53,13 @@ class PatientListViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val patients: StateFlow<List<PatientModel>> =
+    val patients: StateFlow<List<PatientWithStatus>> =
         combine(allPatients, filter, egresoPatientIds) { list, f, egreso ->
+            val mapped = list.map { PatientWithStatus(it, it.id in egreso) }
             when (f) {
-                PatientFilter.ACTIVOS  -> list.filter { it.id !in egreso }
-                PatientFilter.CON_ALTA -> list.filter { it.id in egreso }
-                PatientFilter.TODOS    -> list
+                PatientFilter.ACTIVOS  -> mapped.filter { !it.isDischarged }
+                PatientFilter.CON_ALTA -> mapped.filter { it.isDischarged }
+                PatientFilter.TODOS    -> mapped
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -117,6 +114,22 @@ class PatientListViewModel(
     fun backupAndShare(context: Context) {
         viewModelScope.launch {
             BackupManager.backupAndShare(context.applicationContext)
+        }
+    }
+
+    /** Importa un archivo de backup ZIP y restaura la base de datos. */
+    fun importBackup(context: Context, uri: Uri, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            val result = BackupManager.restoreBackup(context.applicationContext, uri)
+            result.fold(
+                onSuccess = {
+                    Toast.makeText(context, "✓ Datos restaurados. Reinicia la app.", Toast.LENGTH_LONG).show()
+                    onComplete()
+                },
+                onFailure = { e ->
+                    Toast.makeText(context, "Error al importar: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+            )
         }
     }
 

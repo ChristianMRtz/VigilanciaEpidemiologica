@@ -314,7 +314,8 @@ object ExcelExporter {
         patients: List<PatientModel>,
         monitorings: List<DailyMonitoringModel>,
         year: Int,
-        month: Int
+        month: Int,
+        share: Boolean = true
     ) {
         val appContext = context.applicationContext
 
@@ -329,8 +330,9 @@ object ExcelExporter {
         withContext(Dispatchers.Main) {
             result.fold(
                 onSuccess = { (uri, fileName) ->
-                    Toast.makeText(appContext, "✓ Guardado en Descargas: $fileName", Toast.LENGTH_LONG).show()
-                    openXlsx(appContext, uri)
+                    Toast.makeText(appContext, "✓ Exportado: $fileName", Toast.LENGTH_LONG).show()
+                    if (share) shareXlsx(appContext, uri, fileName)
+                    else openXlsx(appContext, uri)
                 },
                 onFailure = { e ->
                     Toast.makeText(appContext, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
@@ -348,7 +350,8 @@ object ExcelExporter {
         patients: List<PatientModel>,
         monitoringsByMonth: Map<Int, List<DailyMonitoringModel>>,
         year: Int,
-        months: List<Int>
+        months: List<Int>,
+        share: Boolean = true
     ) {
         val appContext = context.applicationContext
 
@@ -363,8 +366,9 @@ object ExcelExporter {
         withContext(Dispatchers.Main) {
             result.fold(
                 onSuccess = { (uri, fileName) ->
-                    Toast.makeText(appContext, "✓ Guardado en Descargas: $fileName", Toast.LENGTH_LONG).show()
-                    openXlsx(appContext, uri)
+                    Toast.makeText(appContext, "✓ Exportado: $fileName", Toast.LENGTH_LONG).show()
+                    if (share) shareXlsx(appContext, uri, fileName)
+                    else openXlsx(appContext, uri)
                 },
                 onFailure = { e ->
                     Toast.makeText(appContext, "Error al exportar: ${e.message}", Toast.LENGTH_LONG).show()
@@ -374,6 +378,19 @@ object ExcelExporter {
     }
 
     // ── Helpers de I/O ───────────────────────────────────────────────────
+
+    private fun shareXlsx(context: Context, uri: android.net.Uri, fileName: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, fileName)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        val chooser = Intent.createChooser(intent, "Compartir Excel por...").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try { context.startActivity(chooser) } catch (_: Exception) { }
+    }
 
     private fun saveXlsx(context: Context, fileName: String, bytes: ByteArray): android.net.Uri {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

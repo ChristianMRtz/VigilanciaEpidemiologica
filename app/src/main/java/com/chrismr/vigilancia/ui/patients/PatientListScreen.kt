@@ -1,10 +1,14 @@
 package com.chrismr.vigilancia.ui.patients
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -84,7 +88,7 @@ import com.chrismr.vigilancia.util.DateUtils
 
 private val avatarPalette = listOf(Avatar1, Avatar2, Avatar3, Avatar4, Avatar5, Avatar6, Avatar7, Avatar8)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PatientListScreen(
     patientRepository: PatientRepository,
@@ -104,6 +108,12 @@ fun PatientListScreen(
     var showExportPicker by remember { mutableStateOf(false) }
     var showYearPicker   by remember { mutableStateOf(false) }
     var menuExpanded     by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let { vm.importBackup(context, it) { menuExpanded = false } }
+    }
 
     Scaffold(
         topBar = {
@@ -164,6 +174,13 @@ fun PatientListScreen(
                                     vm.backupAndShare(context)
                                 }
                             )
+                            DropdownMenuItem(
+                                text = { Text("📥  Restaurar backup (Importar)") },
+                                onClick = {
+                                    menuExpanded = false
+                                    importLauncher.launch("application/zip")
+                                }
+                            )
                         }
                     }
                 }
@@ -186,128 +203,38 @@ fun PatientListScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-
-            // ── Campo de búsqueda ──────────────────────────────────────────
-            OutlinedTextField(
-                value = query,
-                onValueChange = vm::updateSearch,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                placeholder = {
-                    Text(
-                        "Buscar por nombre o DNI",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedContainerColor = MaterialTheme.colorScheme.surface
-                ),
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { vm.updateSearch("") }) {
-                            Icon(
-                                Icons.Default.Clear,
-                                contentDescription = "Limpiar",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+            PatientListHeader(
+                patientCount = patients.size,
+                currentFilter = currentFilter,
+                query = query,
+                onQueryChange = vm::updateSearch,
+                onClearQuery = { vm.updateSearch("") },
+                onFilterSelected = vm::setFilter
             )
 
-            // ── Chips de filtro ────────────────────────────────────────────
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(PatientFilter.entries) { f ->
-                    FilterChip(
-                        selected = currentFilter == f,
-                        onClick = { vm.setFilter(f) },
-                        label = {
-                            Text(
-                                f.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (currentFilter == f) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.height(6.dp))
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Contador pequeño
-            if (patients.isNotEmpty()) {
-                Text(
-                    text = "${patients.size} paciente${if (patients.size != 1) "s" else ""} registrado${if (patients.size != 1) "s" else ""}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Lista de pacientes ─────────────────────────────────────────
             if (patients.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = null,
-                            modifier = Modifier.size(56.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = when {
-                                query.isNotBlank() -> "Sin resultados para\n\"$query\""
-                                currentFilter == PatientFilter.ACTIVOS -> "No hay pacientes activos este mes."
-                                currentFilter == PatientFilter.CON_ALTA -> "Ningún paciente tiene Alta este mes."
-                                else -> "No hay pacientes registrados.\nPresiona + para agregar uno."
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                EmptyPatientsState(
+                    query = query,
+                    currentFilter = currentFilter,
+                    onAddPatient = onAddPatient
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp
+                        start = 16.dp, end = 16.dp, top = 6.dp, bottom = 88.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(patients, key = { it.id }) { patient ->
+                    items(patients, key = { it.patient.id }) { item ->
                         PatientCard(
-                            patient = patient,
-                            onEdit = { onEditPatient(patient.id) },
-                            onMonitoring = { onMonitoring(patient.id) },
-                            onDelete = { patientToDelete = patient }
+                            patient = item.patient,
+                            isDischarged = item.isDischarged,
+                            onEdit = { onEditPatient(item.patient.id) },
+                            onMonitoring = { onMonitoring(item.patient.id) },
+                            onDelete = { patientToDelete = item.patient }
                         )
                     }
                 }
@@ -369,10 +296,235 @@ fun PatientListScreen(
     }
 }
 
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun PatientListHeader(
+    patientCount: Int,
+    currentFilter: PatientFilter,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
+    onFilterSelected: (PatientFilter) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f)
+                        )
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Pacientes en vigilancia",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "$patientCount registro${if (patientCount != 1) "s" else ""} disponible${if (patientCount != 1) "s" else ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.DateRange,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = currentFilter.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = {
+                    Text(
+                        "Buscar por nombre o DNI",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(18.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                ),
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = onClearQuery) {
+                            Icon(
+                                Icons.Default.Clear,
+                                contentDescription = "Limpiar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PatientFilter.entries.forEach { f ->
+                    FilterChip(
+                        selected = currentFilter == f,
+                        onClick = { onFilterSelected(f) },
+                        label = {
+                            Text(
+                                f.label,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (currentFilter == f) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyPatientsState(
+    query: String,
+    currentFilter: PatientFilter,
+    onAddPatient: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surface,
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            )
+                        )
+                    )
+                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = when {
+                        query.isNotBlank() -> "Sin resultados para \"$query\""
+                        currentFilter == PatientFilter.ACTIVOS -> "No hay pacientes activos este mes"
+                        currentFilter == PatientFilter.CON_ALTA -> "Ningún paciente tiene alta este mes"
+                        else -> "Todavía no hay pacientes registrados"
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (query.isNotBlank()) {
+                        "Prueba con otro nombre o elimina el filtro para ver más resultados."
+                    } else {
+                        "Agrega un paciente para comenzar el seguimiento diario desde una interfaz más rápida y ordenada."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                if (query.isBlank()) {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Button(
+                        onClick = onAddPatient,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Agregar paciente")
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Tarjeta de paciente ────────────────────────────────────────────────────
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun PatientCard(
     patient: PatientModel,
+    isDischarged: Boolean,
     onEdit: () -> Unit,
     onMonitoring: () -> Unit,
     onDelete: () -> Unit
@@ -381,95 +533,173 @@ private fun PatientCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onMonitoring() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, top = 12.dp, bottom = 12.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f)
+                        )
+                    )
+                )
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Avatar con iniciales
-            PatientAvatar(name = patient.nombreCompleto)
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            // Información del paciente
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = patient.nombreCompleto,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "DNI: ${patient.dni}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (patient.numeroCama.isNotBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PatientAvatar(name = patient.nombreCompleto)
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = patient.nombreCompleto,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (isDischarged) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    "ALTA",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Cama: ${patient.numeroCama}",
+                        text = "DNI ${patient.dni}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (patient.diagnostico.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier
-                    ) {
-                        Text(
-                            text = patient.diagnostico,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f)
+                ) {
+                    Text(
+                        text = "Abrir",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
-            // Acciones
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(onClick = onMonitoring, modifier = Modifier.size(38.dp)) {
-                    Icon(
-                        Icons.Default.DateRange,
-                        contentDescription = "Seguimiento",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                IconButton(onClick = onEdit, modifier = Modifier.size(38.dp)) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Editar",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                IconButton(onClick = onDelete, modifier = Modifier.size(38.dp)) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Eliminar",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(18.dp)
-                    )
+                PatientMetaChip("DNI", patient.dni)
+                if (patient.numeroCama.isNotBlank()) PatientMetaChip("Cama", patient.numeroCama)
+                if (patient.diagnostico.isNotBlank()) {
+                    PatientMetaChip("Dx", patient.diagnostico)
                 }
             }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PatientActionButton(
+                    label = "Seguimiento",
+                    icon = Icons.Default.DateRange,
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                    onClick = onMonitoring
+                )
+                PatientActionButton(
+                    label = "Editar",
+                    icon = Icons.Default.Edit,
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                    onClick = onEdit
+                )
+                PatientActionButton(
+                    label = "Eliminar",
+                    icon = Icons.Default.Delete,
+                    iconTint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.weight(1f),
+                    onClick = onDelete
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PatientMetaChip(label: String, value: String) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+    ) {
+        Text(
+            text = "$label: $value",
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun PatientActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = label, tint = iconTint, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }
@@ -583,7 +813,7 @@ private fun YearPickerDialog(
                         onClick = { onConfirm(selectedYear) },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Exportar")
+                        Text("Compartir")
                     }
                 }
             }
@@ -721,7 +951,7 @@ private fun ConsolidadoMonthYearPicker(
                         onClick = { onConfirm(selectedYear, selectedMonth) },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Descargar")
+                        Text("Compartir")
                     }
                 }
             }

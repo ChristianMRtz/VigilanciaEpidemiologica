@@ -28,6 +28,9 @@ class MonitoringRepository(private val dao: DailyMonitoringDao) {
     ): Flow<List<DailyMonitoringModel>> =
         dao.getAllMonitoringForMonthFlow(year, month).map { list -> list.map { it.toModel() } }
 
+    fun getDischargedPatientIds(): Flow<Set<Long>> =
+        dao.getDischargedPatientIds().map { it.toSet() }
+
     suspend fun getAllMonitoringForMonth(
         year: Int, month: Int
     ): List<DailyMonitoringModel> =

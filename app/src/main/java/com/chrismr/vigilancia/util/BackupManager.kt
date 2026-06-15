@@ -12,10 +12,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 object BackupManager {
@@ -60,6 +62,37 @@ object BackupManager {
                 }
 
                 uri to fileName
+            }
+        }
+
+    /**
+     * Restaura la base de datos desde un archivo ZIP seleccionado.
+     * Cierra la base de datos actual antes de reemplazar los archivos.
+     */
+    suspend fun restoreBackup(context: Context, zipUri: Uri): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val appContext = context.applicationContext
+                val dbFile = appContext.getDatabasePath(DB_NAME)
+
+                // 1. Cerrar la base de datos (se asume que se usa el Singleton de VigilanciaApp)
+                val app = appContext as? com.chrismr.vigilancia.VigilanciaApp
+                app?.database?.close()
+
+                // 2. Extraer archivos del ZIP
+                appContext.contentResolver.openInputStream(zipUri)?.use { input ->
+                    ZipInputStream(input).use { zip ->
+                        var entry: ZipEntry? = zip.nextEntry
+                        while (entry != null) {
+                            val outFile = File(dbFile.parentFile, entry.name)
+                            FileOutputStream(outFile).use { output ->
+                                zip.copyTo(output)
+                            }
+                            zip.closeEntry()
+                            entry = zip.nextEntry
+                        }
+                    }
+                } ?: throw Exception("No se pudo abrir el archivo de backup")
             }
         }
 

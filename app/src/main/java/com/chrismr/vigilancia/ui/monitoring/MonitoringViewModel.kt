@@ -293,6 +293,13 @@ class MonitoringViewModel(
 
             // ── Validaciones para RETIRO ──────────────────────────────────
             if (status == MonitoringStatus.RETIRO) {
+                val hasInicio = allHistory.any { it.status == MonitoringStatus.INICIO } ||
+                        currentMap.values.any { it.status == MonitoringStatus.INICIO }
+                if (!hasInicio) {
+                    statusError.value = "No puede colocar Retiro sin un Inicio previo."
+                    return@launch
+                }
+
                 existsElsewhere(MonitoringStatus.RETIRO)?.let { old ->
                     if (old.year == y && old.month == m) {
                         if (old.day > day) {
@@ -333,6 +340,13 @@ class MonitoringViewModel(
 
             // ── Validaciones para EGRESO (Alta) ───────────────────────────
             if (status == MonitoringStatus.EGRESO) {
+                val hasInicio = allHistory.any { it.status == MonitoringStatus.INICIO } ||
+                        currentMap.values.any { it.status == MonitoringStatus.INICIO }
+                if (!hasInicio) {
+                    statusError.value = "No puede dar el Alta sin un Inicio previo."
+                    return@launch
+                }
+
                 existsElsewhere(MonitoringStatus.EGRESO)?.let { old ->
                     if (old.year == y && old.month == m) {
                         monitoringRepository.deleteMonitoringForDay(patientId, y, m, old.day)
@@ -347,30 +361,61 @@ class MonitoringViewModel(
                 }
             }
 
-            // ── Auto-relleno (no aplica para INICIO) ─────────────────────
+            // ── Auto-relleno mejorado (Cross-month) ──────────────────────
             if (status != MonitoringStatus.INICIO) {
-                // Buscar RETIRO: primero en el mes actual, luego en meses anteriores.
-                // Si el RETIRO fue en otro mes, todos los días del mes actual son post-RETIRO
-                // y deben rellenarse con SIN_DISPOSITIVO.
-                val retiroDayInMap = when {
-                    status == MonitoringStatus.RETIRO -> null
-                    currentMap.values.any { it.status == MonitoringStatus.RETIRO } ->
-                        currentMap.values.first { it.status == MonitoringStatus.RETIRO }.day
-                    allHistory.any { it.status == MonitoringStatus.RETIRO } -> 0  // RETIRO en mes anterior → día 0 = todos los días son post-RETIRO
-                    else -> null
-                }
+                // 1. Buscar último registro cronológico antes del día actual
+                val allSorted = (allHistory + currentMap.values)
+                    .filter { it.year < y || (it.year == y && it.month < m) || (it.year == y && it.month == m && it.day < day) }
+                    .sortedWith(compareBy({ it.year }, { it.month }, { it.day }))
 
-                val lastFilledDay = (1 until day).filter { currentMap.containsKey(it) }.maxOrNull()
-                val fillFrom = (lastFilledDay ?: 0) + 1
-                for (d in fillFrom until day) {
-                    if (!currentMap.containsKey(d)) {
-                        monitoringRepository.insertOrUpdate(
-                            DailyMonitoringModel(
-                                patientId = patientId, year = y, month = m, day = d,
-                                status = if (retiroDayInMap != null && d > retiroDayInMap)
-                                    MonitoringStatus.SIN_DISPOSITIVO else MonitoringStatus.CONTINUA
+                val lastEntry = allSorted.lastOrNull()
+
+                if (lastEntry != null && lastEntry.status != MonitoringStatus.EGRESO) {
+                    // Encontrar si hay un RETIRO previo (global)
+                    val currentRetiro = (allHistory + currentMap.values)
+                        .firstOrNull { it.status == MonitoringStatus.RETIRO }
+
+                    // Si estamos poniendo RETIRO ahora, ese es nuestro punto de referencia
+                    val effectiveRetiro = if (status == MonitoringStatus.RETIRO) {
+                        DailyMonitoringModel(patientId = patientId, year = y, month = m, day = day, status = MonitoringStatus.RETIRO)
+                    } else currentRetiro
+
+                    val curY = lastEntry.year
+                    val curM = lastEntry.month
+                    val curD = lastEntry.day
+
+                    // Función para avanzar un día
+                    fun Triple<Int, Int, Int>.next(): Triple<Int, Int, Int> {
+                        val (cy, cm, cd) = this
+                        val mDays = DateUtils.getDaysInMonth(cy, cm)
+                        return if (cd < mDays) Triple(cy, cm, cd + 1)
+                        else if (cm < 12) Triple(cy, cm + 1, 1)
+                        else Triple(cy + 1, 1, 1)
+                    }
+
+                    var nextDate = Triple(curY, curM, curD).next()
+
+                    // Rellenar huecos hasta el día actual
+                    while (nextDate.first < y || (nextDate.first == y && nextDate.second < m) || (nextDate.first == y && nextDate.second == m && nextDate.third < day)) {
+                        val (ny, nm, nd) = nextDate
+                        val exists = if (ny == y && nm == m) currentMap.containsKey(nd)
+                        else allHistory.any { it.year == ny && it.month == nm && it.day == nd }
+
+                        if (!exists) {
+                            val fillStatus = when {
+                                effectiveRetiro == null -> MonitoringStatus.CONTINUA
+                                ny < effectiveRetiro.year -> MonitoringStatus.CONTINUA
+                                ny > effectiveRetiro.year -> MonitoringStatus.SIN_DISPOSITIVO
+                                nm < effectiveRetiro.month -> MonitoringStatus.CONTINUA
+                                nm > effectiveRetiro.month -> MonitoringStatus.SIN_DISPOSITIVO
+                                else -> if (nd > effectiveRetiro.day) MonitoringStatus.SIN_DISPOSITIVO else MonitoringStatus.CONTINUA
+                            }
+
+                            monitoringRepository.insertOrUpdate(
+                                DailyMonitoringModel(patientId = patientId, year = ny, month = nm, day = nd, status = fillStatus)
                             )
-                        )
+                        }
+                        nextDate = nextDate.next()
                     }
                 }
             }

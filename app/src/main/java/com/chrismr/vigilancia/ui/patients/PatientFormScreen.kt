@@ -1,9 +1,11 @@
 package com.chrismr.vigilancia.ui.patients
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -50,6 +53,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -62,7 +67,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PatientFormScreen(
     patientId: Long?,
@@ -115,6 +120,8 @@ fun PatientFormScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                FormHeroCard(isEditing = patientId != null)
+
                 // ── Sección: Identificación ──────────────────────────────
                 FormSection(title = "Identificación") {
                     FormField(
@@ -206,12 +213,14 @@ fun PatientFormScreen(
                     onClick = vm::save,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                        .height(56.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         if (patientId == null) "Guardar Paciente" else "Actualizar Paciente",
                         style = MaterialTheme.typography.labelLarge,
@@ -225,6 +234,93 @@ fun PatientFormScreen(
     }
 }
 
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun FormHeroCard(isEditing: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
+                        )
+                    )
+                )
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.DateRange,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isEditing) "Actualizar ficha del paciente" else "Registrar nuevo paciente",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Completa los datos principales para mantener la vigilancia clínica bien organizada.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FormBadge("Identificación")
+                FormBadge("Datos clínicos")
+                FormBadge(if (isEditing) "Modo edición" else "Nuevo registro")
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+private fun FormBadge(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f))
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+
 // ── Sección con tarjeta ────────────────────────────────────────────────────
 @Composable
 private fun FormSection(title: String, content: @Composable () -> Unit) {
@@ -234,15 +330,26 @@ private fun FormSection(title: String, content: @Composable () -> Unit) {
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+            modifier = Modifier.padding(start = 6.dp, bottom = 8.dp)
         )
         Card(
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surface,
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                            )
+                        )
+                    )
+                    .padding(16.dp)
+            ) {
                 content()
             }
         }
@@ -275,10 +382,12 @@ private fun DatePickerField(
             readOnly = true,
             label = { Text(label) },
             modifier = Modifier.fillMaxWidth(),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                focusedBorderColor = MaterialTheme.colorScheme.primary
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
             ),
             trailingIcon = {
                 Icon(
@@ -349,7 +458,7 @@ private fun EdadField(
             modifier = Modifier.weight(1f),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
             colors = fieldColors
         )
         ExposedDropdownMenuBox(
@@ -364,7 +473,7 @@ private fun EdadField(
                 label = { Text("Unidad") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                 colors = fieldColors
             )
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -400,11 +509,14 @@ private fun FormField(
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         singleLine = true,
         isError = errorMessage.isNotEmpty(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            errorBorderColor = MaterialTheme.colorScheme.error
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+            errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f)
         ),
         supportingText = if (errorMessage.isNotEmpty()) {
             { Text(errorMessage, color = MaterialTheme.colorScheme.error) }
@@ -427,10 +539,12 @@ private fun SexoDropdown(value: String, onSelect: (String) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                focusedBorderColor = MaterialTheme.colorScheme.primary
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
             )
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
